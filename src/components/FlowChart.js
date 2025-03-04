@@ -209,6 +209,138 @@ const DataModelForm = ({ data, onChange, isExpanded }) => {
     });
   };
 
+  // 更新解析类型选项，添加 multi_table_value
+  const parseTypeOptions = [
+    { label: 'dump_table_value', value: 'dump_table_value' },
+    { label: 'custom_table_value', value: 'custom_table_value' },
+    { label: 'chipreg_table_value', value: 'chipreg_table_value' },
+    { label: 'multi_table_value', value: 'multi_table_value' }
+  ];
+
+  // 连表方式选项
+  const joinTypeOptions = [
+    { label: '左连接', value: 'left_join' },
+    { label: '右连接', value: 'right_join' },
+    { label: '内连接', value: 'inner_join' },
+    { label: '外连接', value: 'outer_join' },
+    { label: '垂直连接', value: 'vertical_join' }
+  ];
+
+  // 根据解析类型渲染额外的输入框
+  const renderExtraFields = () => {
+    switch (data.parseType) {
+      case 'dump_table_value':
+        return (
+          <>
+            <Form.Item label="开始标记" style={{ marginBottom: 8 }}>
+              <Input.TextArea
+                placeholder="请输入开始标记"
+                value={data.startMark || ''}
+                onChange={(e) => handleChange('startMark', e.target.value)}
+                autoSize={{ minRows: 1, maxRows: 3 }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Form.Item>
+            <Form.Item label="结束标记" style={{ marginBottom: 8 }}>
+              <Input.TextArea
+                placeholder="请输入结束标记"
+                value={data.endMark || ''}
+                onChange={(e) => handleChange('endMark', e.target.value)}
+                autoSize={{ minRows: 1, maxRows: 3 }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Form.Item>
+            <Form.Item label="行正则匹配" style={{ marginBottom: 8 }}>
+              <Input.TextArea
+                placeholder="请输入行正则匹配"
+                value={data.lineRegex || ''}
+                onChange={(e) => handleChange('lineRegex', e.target.value)}
+                autoSize={{ minRows: 1, maxRows: 3 }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Form.Item>
+            <Form.Item label="表头" style={{ marginBottom: 8 }}>
+              <Input.TextArea
+                placeholder="请输入表头"
+                value={data.tableHeader || ''}
+                onChange={(e) => handleChange('tableHeader', e.target.value)}
+                autoSize={{ minRows: 1, maxRows: 3 }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Form.Item>
+            <Form.Item label="额外操作" style={{ marginBottom: 8 }}>
+              <Input.TextArea
+                placeholder="请输入额外操作"
+                value={data.extraOperation || ''}
+                onChange={(e) => handleChange('extraOperation', e.target.value)}
+                autoSize={{ minRows: 1, maxRows: 3 }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Form.Item>
+          </>
+        );
+      case 'custom_table_value':
+      case 'chipreg_table_value':
+        return (
+          <>
+            <Form.Item label="表头" style={{ marginBottom: 8 }}>
+              <Input.TextArea
+                placeholder="请输入表头"
+                value={data.tableHeader || ''}
+                onChange={(e) => handleChange('tableHeader', e.target.value)}
+                autoSize={{ minRows: 1, maxRows: 3 }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Form.Item>
+            <Form.Item label="额外操作" style={{ marginBottom: 8 }}>
+              <Input.TextArea
+                placeholder="请输入额外操作"
+                value={data.extraOperation || ''}
+                onChange={(e) => handleChange('extraOperation', e.target.value)}
+                autoSize={{ minRows: 1, maxRows: 3 }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Form.Item>
+          </>
+        );
+      case 'multi_table_value':
+        return (
+          <>
+            <Form.Item label="连表方式" style={{ marginBottom: 8 }}>
+              <Select
+                placeholder="请选择连表方式"
+                value={data.joinType}
+                onChange={(value) => handleChange('joinType', value)}
+                onClick={(e) => e.stopPropagation()}
+                style={{ width: '100%' }}
+                options={joinTypeOptions}
+              />
+            </Form.Item>
+            <Form.Item label="连表字段" style={{ marginBottom: 8 }}>
+              <Input.TextArea
+                placeholder="请输入连表字段"
+                value={data.joinFields || ''}
+                onChange={(e) => handleChange('joinFields', e.target.value)}
+                autoSize={{ minRows: 1, maxRows: 3 }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Form.Item>
+            <Form.Item label="额外操作" style={{ marginBottom: 8 }}>
+              <Input.TextArea
+                placeholder="请输入额外操作"
+                value={data.extraOperation || ''}
+                onChange={(e) => handleChange('extraOperation', e.target.value)}
+                autoSize={{ minRows: 1, maxRows: 3 }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Form.Item>
+          </>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div>
       <Form.Item label="模型ID" style={{ marginBottom: 8 }}>
@@ -223,31 +355,15 @@ const DataModelForm = ({ data, onChange, isExpanded }) => {
         <>
           <Form.Item label="解析类型" style={{ marginBottom: 8 }}>
             <Select
+              placeholder="请选择解析类型"
               value={data.parseType}
               onChange={(value) => handleChange('parseType', value)}
               onClick={(e) => e.stopPropagation()}
-            >
-              <Select.Option value="dump_table_value">dump_table_value</Select.Option>
-              <Select.Option value="custom_table_value">custom_table_value</Select.Option>
-              <Select.Option value="chipreg_table_value">chipreg_table_value</Select.Option>
-            </Select>
-          </Form.Item>
-          <Form.Item label="命令" style={{ marginBottom: 8 }}>
-            <Input
-              placeholder="请输入命令"
-              value={data.command || ''}
-              onChange={(e) => handleChange('command', e.target.value)}
-              onClick={(e) => e.stopPropagation()}
+              style={{ width: '100%' }}
+              options={parseTypeOptions}
             />
           </Form.Item>
-          <Form.Item label="参数" style={{ marginBottom: 8 }}>
-            <Input
-              placeholder="请输入参数"
-              value={data.parameters || ''}
-              onChange={(e) => handleChange('parameters', e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </Form.Item>
+          {renderExtraFields()}
         </>
       )}
     </div>
@@ -514,83 +630,113 @@ const FlowChart = () => {
     []
   );
 
-  // 修改连接验证函数
+  // 将 isValidConnection 包装在 useCallback 中
   const isValidConnection = useCallback((connection) => {
-    if (!connection.source || !connection.target) return false;
-
+    const { source, target } = connection;
+    
     // 获取源节点和目标节点
-    const sourceNode = nodes.find(node => node.id === connection.source);
-    const targetNode = nodes.find(node => node.id === connection.target);
+    const sourceNode = nodes.find(node => node.id === source);
+    const targetNode = nodes.find(node => node.id === target);
 
-    // 如果找不到节点，返回 false
-    if (!sourceNode?.data?.type || !targetNode?.data?.type) return false;
+    if (!sourceNode || !targetNode) {
+      return false;
+    }
 
-    // 如果数据模型是源节点，可以连接到分析原子或数据模型
+    // 前置检查节点的连接规则
+    if (sourceNode.data.type === 'prerequisite') {
+      if (targetNode.data.type !== 'preCheck') {
+        message.error('前置检查节点只能连接到执行前检查节点');
+        return false;
+      }
+      return true;
+    }
+
+    // 执行前检查节点的连接规则
+    if (sourceNode.data.type === 'preCheck') {
+      if (targetNode.data.type !== 'atomicAnalysis' && targetNode.data.type !== 'analysisResult') {
+        message.error('执行前检查节点只能连接到分析原子节点或分析结果节点');
+        return false;
+      }
+      return true;
+    }
+
+    // 数据模型节点的连接规则
     if (sourceNode.data.type === 'dataModel') {
-      return targetNode.data.type === 'atomicAnalysis' || 
-             targetNode.data.type === 'dataModel';
+      if (targetNode.data.type !== 'atomicAnalysis' && targetNode.data.type !== 'dataModel') {
+        message.error('数据模型节点只能连接到分析原子节点或其他数据模型节点');
+        return false;
+      }
+      return true;
     }
 
-    // 如果数据模型是目标节点，可以从分析原子或数据模型连接
-    if (targetNode.data.type === 'dataModel') {
-      return sourceNode.data.type === 'atomicAnalysis' || 
-             sourceNode.data.type === 'dataModel';
-    }
-
+    // 其他类型节点的连接规则
     return true;
   }, [nodes]);
 
-  // 修改连接处理函数
-  const onConnect = useCallback(
-    (params) => {
-      try {
-        if (!params?.source || !params?.target) {
-          console.log('Invalid connection params:', params);
-          return;
-        }
+  const onConnectStart = useCallback((event, { nodeId, handleType }) => {
+    const sourceNode = nodes.find(node => node.id === nodeId);
+    
+    if (!sourceNode) return;
 
-        // 验证连接是否有效
-        if (!isValidConnection(params)) {
-          message.error('数据模型节点只能与分析原子节点或其他数据模型节点相连接');
-          return;
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (sourceNode.data.type === 'prerequisite') {
+          // 如果是前置检查节点，只高亮显示执行前检查节点
+          return {
+            ...node,
+            style: {
+              ...node.style,
+              opacity: node.data.type === 'preCheck' ? 1 : 0.2,
+            },
+          };
+        } else if (sourceNode.data.type === 'preCheck') {
+          // 如果是执行前检查节点，只高亮显示分析原子和分析结果节点
+          return {
+            ...node,
+            style: {
+              ...node.style,
+              opacity: (node.data.type === 'atomicAnalysis' || node.data.type === 'analysisResult') ? 1 : 0.2,
+            },
+          };
+        } else if (sourceNode.data.type === 'dataModel') {
+          // 数据模型节点的逻辑保持不变
+          return {
+            ...node,
+            style: {
+              ...node.style,
+              opacity: (node.data.type === 'atomicAnalysis' || node.data.type === 'dataModel') ? 1 : 0.2,
+            },
+          };
         }
-
-        setEdges((eds) => addEdge({
-          ...params,
-          type: 'smoothstep',
-          animated: true,
-          style: { stroke: '#555' },
-          markerEnd: {
-            type: 'arrowclosed',
-            width: 20,
-            height: 20,
-            color: '#555',
+        // 其他节点类型的连接逻辑保持不变
+        return {
+          ...node,
+          style: {
+            ...node.style,
+            opacity: 1,
           },
-        }, eds));
-      } catch (error) {
-        console.error('Connection error:', error);
-        message.error('连接失败，请重试');
-      }
-    },
-    [isValidConnection]
-  );
-
-  // 修改连接开始时的高亮逻辑
-  const onConnectStart = useCallback((event, params) => {
-    if (!params?.nodeId) return;
-
-    const node = nodes.find(n => n.id === params.nodeId);
-    if (node?.data?.type === 'dataModel') {
-      // 当从数据模型节点开始连接时，高亮可连接的节点类型
-      setNodes(nodes.map(n => ({
-        ...n,
-        style: {
-          ...n.style,
-          opacity: (n.data.type === 'atomicAnalysis' || n.data.type === 'dataModel') ? 1 : 0.5
-        }
-      })));
-    }
+        };
+      })
+    );
   }, [nodes]);
+
+  const onConnectEnd = useCallback(() => {
+    setNodes((nds) =>
+      nds.map((node) => ({
+        ...node,
+        style: {
+          ...node.style,
+          opacity: 1,
+        },
+      }))
+    );
+  }, []);
+
+  const onConnect = useCallback((connection) => {
+    if (isValidConnection(connection)) {
+      setEdges((eds) => addEdge(connection, eds));
+    }
+  }, [isValidConnection]);
 
   const handleDrop = useCallback(
     (event) => {
@@ -648,7 +794,14 @@ const FlowChart = () => {
             modelId: '',
             parseType: 'dump_table_value',
             command: '',
-            parameters: ''
+            parameters: '',
+            startMark: '',
+            endMark: '',
+            lineRegex: '',
+            tableHeader: '',
+            extraOperation: '',
+            joinType: 'left_join',
+            joinFields: ''
           };
           break;
         case 'analysisResult':
@@ -826,16 +979,7 @@ const FlowChart = () => {
               onNodeContextMenu={onNodeContextMenu}
               onPaneClick={onPaneClick}
               onConnectStart={onConnectStart}
-              onConnectEnd={() => {
-                // 恢复所有节点的正常显示
-                setNodes(nodes.map(n => ({
-                  ...n,
-                  style: {
-                    ...n.style,
-                    opacity: 1
-                  }
-                })));
-              }}
+              onConnectEnd={onConnectEnd}
               fitView
               style={{ background: '#f0f2f5' }}
               defaultEdgeOptions={{
