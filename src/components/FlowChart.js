@@ -11,7 +11,7 @@ import ReactFlow, {
   useReactFlow,
   ReactFlowProvider
 } from 'reactflow';
-import { Card, Button, Space, Layout, Input, Form, Radio, Dropdown, Menu, Divider, Select, message } from 'antd';
+import { Card, Button, Space, Layout, Input, Form, Radio, Dropdown, Menu, Divider, Select } from 'antd';
 import { DeleteOutlined, UpOutlined, DownOutlined } from '@ant-design/icons';
 import 'reactflow/dist/style.css';
 
@@ -56,6 +56,13 @@ const NODE_TYPES = {
     icon: '💾'
   }
 };
+
+// 修改分析类型常量格式以适配 Select 组件
+const ANALYSIS_TYPE_OPTIONS = [
+  { label: '表达式分析', value: 'expression' },
+  { label: '原始分析', value: 'raw' },
+  { label: '定制分析', value: 'custom' }
+];
 
 // 前置条件表单组件
 const PrerequisiteForm = ({ data, onChange, isExpanded }) => {
@@ -142,6 +149,26 @@ const AtomicAnalysisForm = ({ data, onChange, isExpanded }) => {
       </Form.Item>
       {isExpanded && (
         <>
+          <Form.Item label="分析类型" style={{ marginBottom: 8 }}>
+            <Select
+              value={data.analysisType}
+              onChange={(value) => handleChange('analysisType', value)}
+              onClick={(e) => e.stopPropagation()}
+              options={ANALYSIS_TYPE_OPTIONS}
+              style={{ width: '100%' }}
+              placeholder="请选择分析类型"
+            />
+          </Form.Item>
+          <Form.Item label="忽略结果" style={{ marginBottom: 8 }}>
+            <Radio.Group
+              value={data.ignoreResult}
+              onChange={(e) => handleChange('ignoreResult', e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Radio value={true}>是</Radio>
+              <Radio value={false}>否</Radio>
+            </Radio.Group>
+          </Form.Item>
           <Form.Item label="分析规则" style={{ marginBottom: 8 }}>
             <Input.TextArea
               placeholder="请输入分析规则"
@@ -214,7 +241,8 @@ const DataModelForm = ({ data, onChange, isExpanded }) => {
     { label: 'dump_table_value', value: 'dump_table_value' },
     { label: 'custom_table_value', value: 'custom_table_value' },
     { label: 'chipreg_table_value', value: 'chipreg_table_value' },
-    { label: 'multi_table_value', value: 'multi_table_value' }
+    { label: 'multi_table_value', value: 'multi_table_value' },
+    { label: 'ctx_table_value', value: 'ctx_table_value' }
   ];
 
   // 连表方式选项
@@ -225,121 +253,6 @@ const DataModelForm = ({ data, onChange, isExpanded }) => {
     { label: '外连接', value: 'outer_join' },
     { label: '垂直连接', value: 'vertical_join' }
   ];
-
-  // 根据解析类型渲染额外的输入框
-  const renderExtraFields = () => {
-    switch (data.parseType) {
-      case 'dump_table_value':
-        return (
-          <>
-            <Form.Item label="开始标记" style={{ marginBottom: 8 }}>
-              <Input.TextArea
-                placeholder="请输入开始标记"
-                value={data.startMark || ''}
-                onChange={(e) => handleChange('startMark', e.target.value)}
-                autoSize={{ minRows: 1, maxRows: 3 }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </Form.Item>
-            <Form.Item label="结束标记" style={{ marginBottom: 8 }}>
-              <Input.TextArea
-                placeholder="请输入结束标记"
-                value={data.endMark || ''}
-                onChange={(e) => handleChange('endMark', e.target.value)}
-                autoSize={{ minRows: 1, maxRows: 3 }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </Form.Item>
-            <Form.Item label="行正则匹配" style={{ marginBottom: 8 }}>
-              <Input.TextArea
-                placeholder="请输入行正则匹配"
-                value={data.lineRegex || ''}
-                onChange={(e) => handleChange('lineRegex', e.target.value)}
-                autoSize={{ minRows: 1, maxRows: 3 }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </Form.Item>
-            <Form.Item label="表头" style={{ marginBottom: 8 }}>
-              <Input.TextArea
-                placeholder="请输入表头"
-                value={data.tableHeader || ''}
-                onChange={(e) => handleChange('tableHeader', e.target.value)}
-                autoSize={{ minRows: 1, maxRows: 3 }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </Form.Item>
-            <Form.Item label="额外操作" style={{ marginBottom: 8 }}>
-              <Input.TextArea
-                placeholder="请输入额外操作"
-                value={data.extraOperation || ''}
-                onChange={(e) => handleChange('extraOperation', e.target.value)}
-                autoSize={{ minRows: 1, maxRows: 3 }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </Form.Item>
-          </>
-        );
-      case 'custom_table_value':
-      case 'chipreg_table_value':
-        return (
-          <>
-            <Form.Item label="表头" style={{ marginBottom: 8 }}>
-              <Input.TextArea
-                placeholder="请输入表头"
-                value={data.tableHeader || ''}
-                onChange={(e) => handleChange('tableHeader', e.target.value)}
-                autoSize={{ minRows: 1, maxRows: 3 }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </Form.Item>
-            <Form.Item label="额外操作" style={{ marginBottom: 8 }}>
-              <Input.TextArea
-                placeholder="请输入额外操作"
-                value={data.extraOperation || ''}
-                onChange={(e) => handleChange('extraOperation', e.target.value)}
-                autoSize={{ minRows: 1, maxRows: 3 }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </Form.Item>
-          </>
-        );
-      case 'multi_table_value':
-        return (
-          <>
-            <Form.Item label="连表方式" style={{ marginBottom: 8 }}>
-              <Select
-                placeholder="请选择连表方式"
-                value={data.joinType}
-                onChange={(value) => handleChange('joinType', value)}
-                onClick={(e) => e.stopPropagation()}
-                style={{ width: '100%' }}
-                options={joinTypeOptions}
-              />
-            </Form.Item>
-            <Form.Item label="连表字段" style={{ marginBottom: 8 }}>
-              <Input.TextArea
-                placeholder="请输入连表字段"
-                value={data.joinFields || ''}
-                onChange={(e) => handleChange('joinFields', e.target.value)}
-                autoSize={{ minRows: 1, maxRows: 3 }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </Form.Item>
-            <Form.Item label="额外操作" style={{ marginBottom: 8 }}>
-              <Input.TextArea
-                placeholder="请输入额外操作"
-                value={data.extraOperation || ''}
-                onChange={(e) => handleChange('extraOperation', e.target.value)}
-                autoSize={{ minRows: 1, maxRows: 3 }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </Form.Item>
-          </>
-        );
-      default:
-        return null;
-    }
-  };
 
   return (
     <div>
@@ -363,7 +276,165 @@ const DataModelForm = ({ data, onChange, isExpanded }) => {
               options={parseTypeOptions}
             />
           </Form.Item>
-          {renderExtraFields()}
+          {/* 命令和参数输入框在 multi_table_value 和 ctx_table_value 类型下都不显示 */}
+          {data.parseType !== 'multi_table_value' && data.parseType !== 'ctx_table_value' && (
+            <>
+              <Form.Item label="命令" style={{ marginBottom: 8 }}>
+            <Input.TextArea
+                  placeholder="请输入命令"
+                  value={data.command || ''}
+                  onChange={(e) => handleChange('command', e.target.value)}
+              autoSize={{ minRows: 1, maxRows: 3 }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </Form.Item>
+              <Form.Item label="参数" style={{ marginBottom: 8 }}>
+            <Input.TextArea
+                  placeholder="请输入参数"
+                  value={data.parameters || ''}
+                  onChange={(e) => handleChange('parameters', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+            </>
+          )}
+          {/* ctx_table_value 类型特有的系统参数输入框 */}
+          {data.parseType === 'ctx_table_value' && (
+            <>
+              <Form.Item label="系统参数" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入系统参数"
+                  value={data.systemParams || ''}
+                  onChange={(e) => handleChange('systemParams', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+              <Form.Item label="表头" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入表头"
+                  value={data.tableHeader || ''}
+                  onChange={(e) => handleChange('tableHeader', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+              <Form.Item label="额外操作" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入额外操作"
+                  value={data.extraOperation || ''}
+                  onChange={(e) => handleChange('extraOperation', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+            </>
+          )}
+          {/* 其他类型的渲染逻辑保持不变 */}
+          {data.parseType === 'dump_table_value' && (
+            <>
+              <Form.Item label="开始标记" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入开始标记"
+                  value={data.startMark || ''}
+                  onChange={(e) => handleChange('startMark', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+              <Form.Item label="结束标记" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入结束标记"
+                  value={data.endMark || ''}
+                  onChange={(e) => handleChange('endMark', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+              <Form.Item label="行正则匹配" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入行正则匹配"
+                  value={data.lineRegex || ''}
+                  onChange={(e) => handleChange('lineRegex', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+              <Form.Item label="表头" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入表头"
+                  value={data.tableHeader || ''}
+                  onChange={(e) => handleChange('tableHeader', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+              <Form.Item label="额外操作" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入额外操作"
+                  value={data.extraOperation || ''}
+                  onChange={(e) => handleChange('extraOperation', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+            </>
+          )}
+          {data.parseType === 'multi_table_value' && (
+            <>
+              <Form.Item label="连表方式" style={{ marginBottom: 8 }}>
+                <Select
+                  placeholder="请选择连表方式"
+                  value={data.joinType}
+                  onChange={(value) => handleChange('joinType', value)}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ width: '100%' }}
+                  options={joinTypeOptions}
+                />
+              </Form.Item>
+              <Form.Item label="连表字段" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入连表字段"
+                  value={data.joinFields || ''}
+                  onChange={(e) => handleChange('joinFields', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+              <Form.Item label="额外操作" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入额外操作"
+                  value={data.extraOperation || ''}
+                  onChange={(e) => handleChange('extraOperation', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+            </>
+          )}
+          {(data.parseType === 'custom_table_value' || data.parseType === 'chipreg_table_value') && (
+            <>
+              <Form.Item label="表头" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入表头"
+                  value={data.tableHeader || ''}
+                  onChange={(e) => handleChange('tableHeader', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+              <Form.Item label="额外操作" style={{ marginBottom: 8 }}>
+                <Input.TextArea
+                  placeholder="请输入额外操作"
+                  value={data.extraOperation || ''}
+                  onChange={(e) => handleChange('extraOperation', e.target.value)}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Form.Item>
+            </>
+          )}
         </>
       )}
     </div>
@@ -427,6 +498,15 @@ const AnalysisResultForm = ({ data, onChange, isExpanded }) => {
               value={data.resultOutput || ''}
               onChange={(e) => handleChange('resultOutput', e.target.value)}
               autoSize={{ minRows: 2, maxRows: 4 }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </Form.Item>
+          <Form.Item label="分支条件" style={{ marginBottom: 8 }}>
+            <Input.TextArea
+              placeholder="请输入分支条件"
+              value={data.branchCondition || ''}
+              onChange={(e) => handleChange('branchCondition', e.target.value)}
+              autoSize={{ minRows: 1, maxRows: 3 }}
               onClick={(e) => e.stopPropagation()}
             />
           </Form.Item>
@@ -620,123 +700,96 @@ const FlowChart = () => {
   const [searchText, setSearchText] = useState('');
   const [clipboard, setClipboard] = useState(null);
 
-  const onNodesChange = useCallback(
-    (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
-    []
-  );
+  const onNodesChange = useCallback((changes) => {
+    setNodes((nds) => applyNodeChanges(changes, nds));
+  }, []);
 
-  const onEdgesChange = useCallback(
-    (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-    []
-  );
+  const onEdgesChange = useCallback((changes) => {
+    setEdges((eds) => applyEdgeChanges(changes, eds));
+  }, []);
 
-  // 将 isValidConnection 包装在 useCallback 中
   const isValidConnection = useCallback((connection) => {
-    const { source, target } = connection;
-    
-    // 获取源节点和目标节点
-    const sourceNode = nodes.find(node => node.id === source);
-    const targetNode = nodes.find(node => node.id === target);
+    const sourceNode = nodes.find(node => node.id === connection.source);
+    const targetNode = nodes.find(node => node.id === connection.target);
 
-    if (!sourceNode || !targetNode) {
-      return false;
-    }
+    if (!sourceNode || !targetNode) return false;
 
-    // 前置检查节点的连接规则
-    if (sourceNode.data.type === 'prerequisite') {
-      if (targetNode.data.type !== 'preCheck') {
-        message.error('前置检查节点只能连接到执行前检查节点');
+    // 如果目标节点是分析结果节点
+    if (targetNode.type === 'analysisResult') {
+      // 只允许来自执行前检查节点或分析原子节点的连接
+      if (sourceNode.type !== 'preCheck' && sourceNode.type !== 'atomicAnalysis') {
         return false;
       }
-      return true;
     }
 
-    // 执行前检查节点的连接规则
-    if (sourceNode.data.type === 'preCheck') {
-      if (targetNode.data.type !== 'atomicAnalysis' && targetNode.data.type !== 'analysisResult') {
-        message.error('执行前检查节点只能连接到分析原子节点或分析结果节点');
-        return false;
-      }
-      return true;
+    // 数据模型指向分析原子的连接样式
+    if (sourceNode.type === 'dataModel' && targetNode.type === 'atomicAnalysis') {
+      return {
+        valid: true,
+        style: { stroke: '#FFEB3B' }
+      };
     }
 
-    // 数据模型节点的连接规则
-    if (sourceNode.data.type === 'dataModel') {
-      if (targetNode.data.type !== 'atomicAnalysis' && targetNode.data.type !== 'dataModel') {
-        message.error('数据模型节点只能连接到分析原子节点或其他数据模型节点');
-        return false;
-      }
-      return true;
+    // 数据模型的其他连接规则
+    if (sourceNode.type === 'dataModel') {
+      return targetNode.type === 'atomicAnalysis' || targetNode.type === 'dataModel';
     }
 
-    // 其他类型节点的连接规则
     return true;
   }, [nodes]);
 
   const onConnectStart = useCallback((event, { nodeId, handleType }) => {
+    if (!nodeId) return;
+
     const sourceNode = nodes.find(node => node.id === nodeId);
     
-    if (!sourceNode) return;
-
     setNodes((nds) =>
       nds.map((node) => {
-        if (sourceNode.data.type === 'prerequisite') {
-          // 如果是前置检查节点，只高亮显示执行前检查节点
-          return {
-            ...node,
-            style: {
-              ...node.style,
-              opacity: node.data.type === 'preCheck' ? 1 : 0.2,
-            },
-          };
-        } else if (sourceNode.data.type === 'preCheck') {
-          // 如果是执行前检查节点，只高亮显示分析原子和分析结果节点
-          return {
-            ...node,
-            style: {
-              ...node.style,
-              opacity: (node.data.type === 'atomicAnalysis' || node.data.type === 'analysisResult') ? 1 : 0.2,
-            },
-          };
-        } else if (sourceNode.data.type === 'dataModel') {
-          // 数据模型节点的逻辑保持不变
-          return {
-            ...node,
-            style: {
-              ...node.style,
-              opacity: (node.data.type === 'atomicAnalysis' || node.data.type === 'dataModel') ? 1 : 0.2,
-            },
-          };
+        if (sourceNode) {
+          // 如果开始连接的是执行前检查节点或分析原子节点
+          if (sourceNode.type === 'preCheck' || sourceNode.type === 'atomicAnalysis') {
+            // 只高亮分析结果节点
+            if (node.type === 'analysisResult') {
+              node.style = { ...node.style, opacity: 1 };
+            } else {
+              node.style = { ...node.style, opacity: 0.2 };
+            }
+          } else {
+            // 其他节点的原有高亮逻辑
+            if (sourceNode.type === 'dataModel') {
+              if (node.type === 'atomicAnalysis' || node.type === 'dataModel') {
+                node.style = { ...node.style, opacity: 1 };
+              } else {
+                node.style = { ...node.style, opacity: 0.2 };
+              }
+            }
+          }
         }
-        // 其他节点类型的连接逻辑保持不变
-        return {
-          ...node,
-          style: {
-            ...node.style,
-            opacity: 1,
-          },
-        };
+        return node;
       })
     );
   }, [nodes]);
 
   const onConnectEnd = useCallback(() => {
     setNodes((nds) =>
-      nds.map((node) => ({
-        ...node,
-        style: {
-          ...node.style,
-          opacity: 1,
-        },
-      }))
+      nds.map((node) => {
+        node.style = { ...node.style, opacity: 1 };
+        return node;
+      })
     );
   }, []);
 
-  const onConnect = useCallback((connection) => {
-    if (isValidConnection(connection)) {
-      setEdges((eds) => addEdge(connection, eds));
+  const onConnect = useCallback((params) => {
+    const sourceNode = nodes.find(node => node.id === params.source);
+    const targetNode = nodes.find(node => node.id === params.target);
+
+    // 为数据模型指向分析原子的连接添加样式
+    if (sourceNode?.type === 'dataModel' && targetNode?.type === 'atomicAnalysis') {
+      params.style = { stroke: '#FFEB3B' };  // 设置为黄色
     }
-  }, [isValidConnection]);
+
+    setEdges((eds) => addEdge(params, eds));
+  }, [nodes]);
 
   const handleDrop = useCallback(
     (event) => {
@@ -777,8 +830,10 @@ const FlowChart = () => {
           initialData = {
             ...initialData,
             atomicId: '',
+            analysisType: 'expression',  // 默认选择表达式分析
             analysisRule: '',
-            parameterRefresh: ''
+            parameterRefresh: '',
+            ignoreResult: false
           };
           break;
         case 'preCheck':
@@ -795,6 +850,7 @@ const FlowChart = () => {
             parseType: 'dump_table_value',
             command: '',
             parameters: '',
+            systemParams: '',  // 添加系统参数字段
             startMark: '',
             endMark: '',
             lineRegex: '',
@@ -808,9 +864,7 @@ const FlowChart = () => {
           initialData = {
             ...initialData,
             resultId: '',
-            severityLevel: 'hint',  // 改为 severityLevel，默认选择"提示"
-            weightValue: '',
-            resultOutput: ''
+            branchCondition: ''  // 添加分支条件字段初始化
           };
           break;
         case 'analysisResource':
@@ -997,6 +1051,7 @@ const FlowChart = () => {
               selectNodesOnDrag={true}
               multiSelectionKeyCode={['Control', 'Meta']}
               deleteKeyCode={['Backspace', 'Delete']}
+              isValidConnection={isValidConnection}
             >
               <Background />
               <Controls />
