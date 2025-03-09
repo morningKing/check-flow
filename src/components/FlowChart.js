@@ -11,7 +11,7 @@ import ReactFlow, {
   useReactFlow,
   ReactFlowProvider
 } from 'reactflow';
-import { Card, Button, Space, Layout, Input, Form, Radio, Dropdown, Menu, Divider, Select } from 'antd';
+import { Card, Button, Space, Layout, Input, Form, Radio, Dropdown, Menu, Divider, Select, Tabs, Table } from 'antd';
 import { DeleteOutlined, UpOutlined, DownOutlined } from '@ant-design/icons';
 import 'reactflow/dist/style.css';
 
@@ -699,10 +699,52 @@ const FlowChart = () => {
   const [contextMenu, setContextMenu] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [clipboard, setClipboard] = useState(null);
+  const [prerequisiteData, setPrerequisiteData] = useState([]);
+  const [bottomHeight, setBottomHeight] = useState(400);
+  const [isDragging, setIsDragging] = useState(false);
 
   const onNodesChange = useCallback((changes) => {
+    // 先找出要删除的节点
+    const nodesToRemove = changes
+      .filter(change => change.type === 'remove')
+      .map(change => change.id);
+    
+    // 如果有节点被删除
+    if (nodesToRemove.length > 0) {
+      console.log('删除的节点:', nodesToRemove);
+      
+      // 遍历所有将被删除的节点
+      nodesToRemove.forEach(nodeId => {
+        // 找到要删除的节点
+        const nodeToDelete = nodes.find(node => node.id === nodeId);
+        
+        if (nodeToDelete) {
+          console.log('正在删除节点:', nodeToDelete);
+          
+          // 判断是否是前置条件节点
+          const isPrerequisite = 
+            nodeToDelete.type === 'prerequisite' || 
+            (nodeToDelete.type === 'custom' && nodeToDelete.data?.type === 'prerequisite');
+          
+          // 如果是前置条件节点，删除表格对应的数据行
+          if (isPrerequisite) {
+            console.log('删除前置条件表格行:', nodeId);
+            console.log('删除前表格数据:', prerequisiteData);
+            
+            setPrerequisiteData(prevData => {
+              // 过滤掉要删除的节点对应的表格行
+              const newData = prevData.filter(item => item.key !== nodeId);
+              console.log('删除后表格数据:', newData);
+              return newData;
+            });
+          }
+        }
+      });
+    }
+    
+    // 应用节点变化
     setNodes((nds) => applyNodeChanges(changes, nds));
-  }, []);
+  }, [nodes, prerequisiteData]);
 
   const onEdgesChange = useCallback((changes) => {
     setEdges((eds) => applyEdgeChanges(changes, eds));
@@ -790,6 +832,29 @@ const FlowChart = () => {
 
     setEdges((eds) => addEdge(params, eds));
   }, [nodes]);
+
+  // 添加空白的前置条件行
+const addEmptyPrerequisiteRow = useCallback(() => {
+  // 生成唯一ID
+  const id = `prerequisite-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  
+  // 创建空白数据行
+  const newRow = {
+    key: id,
+    caseId: '',
+    isEnabled: true,
+    devicePrerequisite: '',
+    subRackPrerequisite: '',
+    boardPrerequisite: ''
+  };
+  
+  // 添加到表格数据中
+  setPrerequisiteData(prev => [...prev, newRow]);
+  
+  console.log('已添加空白前置条件行，ID:', id);
+  
+  return id; // 返回新行的ID，以便后续使用
+}, []);
 
   const handleDrop = useCallback(
     (event) => {
@@ -882,16 +947,27 @@ const FlowChart = () => {
           break;
       }
 
+      if (nodeType === 'prerequisite') {
+        const rowId = addEmptyPrerequisiteRow()
+        const newNode = {
+          id: rowId,
+          type: 'custom',
+          position,
+          data: initialData
+        };
+        setNodes((nds) => [...nds, newNode]);
+      } else {
       const newNode = {
-        id: `node${nodes.length + 1}`,
-        type: 'custom',
-        position,
-        data: initialData
-      };
-
-      setNodes((nds) => [...nds, newNode]);
+            id: `node${nodes.length + 1}`,
+            type: 'custom',
+            position,
+            data: initialData
+          };
+          setNodes((nds) => [...nds, newNode]);
+          }
+      
     },
-    [nodes, reactFlowInstance]
+    [nodes, reactFlowInstance, addEmptyPrerequisiteRow]
   );
 
   const handleDragOver = useCallback((event) => {
@@ -1002,6 +1078,212 @@ const FlowChart = () => {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [onKeyDown]);
+
+  // 处理拖动开始
+  const handleMouseDown = useCallback((e) => {
+    setIsDragging(true);
+    e.preventDefault(); // 防止文本选择
+  }, []);
+
+  // 处理拖动过程
+  const handleMouseMove = useCallback((e) => {
+    if (!isDragging) return;
+    
+    const windowHeight = window.innerHeight;
+    const mouseY = e.clientY;
+    const newHeight = windowHeight - mouseY;
+    
+    // 限制最小和最大高度
+    const limitedHeight = Math.min(Math.max(newHeight, 200), windowHeight * 0.8);
+    setBottomHeight(limitedHeight);
+  }, [isDragging]);
+
+  // 处理拖动结束
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // 添加全局鼠标事件监听
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
+  // 添加表格单元格编辑处理函数
+  const handleTableCellEdit = useCallback((key, field, value) => {
+    // 更新表格数据
+    setPrerequisiteData(prev => prev.map(item => {
+      if (item.key === key) {
+        return {
+          ...item,
+          [field]: value
+        };
+      }
+      return item;
+    }));
+
+    // 同步更新节点数据
+    setNodes(nds => nds.map(node => {
+      if (node.id === key) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            [field]: value
+          }
+        };
+      }
+      return node;
+    }));
+  }, []);
+
+  // 前置条件表格列定义
+  const prerequisiteColumns = [
+    {
+      title: '用例ID',
+      dataIndex: 'caseId',
+      key: 'caseId',
+      width: 120,
+      render: (text, record) => (
+        <Input
+          value={text}
+          onChange={(e) => handleTableCellEdit(record.key, 'caseId', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )
+    },
+    {
+      title: '是否生效',
+      dataIndex: 'isEnabled',
+      key: 'isEnabled',
+      width: 100,
+      render: (value, record) => (
+        <Select
+          value={value}
+          onChange={(value) => handleTableCellEdit(record.key, 'isEnabled', value)}
+          onClick={(e) => e.stopPropagation()}
+          options={[
+            { label: '是', value: true },
+            { label: '否', value: false }
+          ]}
+          style={{ width: '100%' }}
+        />
+      )
+    },
+    {
+      title: '设备前置条件',
+      dataIndex: 'devicePrerequisite',
+      key: 'devicePrerequisite',
+      width: 300,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleTableCellEdit(record.key, 'devicePrerequisite', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '子架前置条件',
+      dataIndex: 'subRackPrerequisite',
+      key: 'subRackPrerequisite',
+      width: 300,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleTableCellEdit(record.key, 'subRackPrerequisite', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '单板前置条件',
+      dataIndex: 'boardPrerequisite',
+      key: 'boardPrerequisite',
+      width: 300,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleTableCellEdit(record.key, 'boardPrerequisite', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    }
+  ];
+
+  // 定义标签页内容
+  const tabItems = [
+    {
+      key: 'prerequisite',
+      label: '前置条件',
+      children: (
+        <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
+          <Table
+            columns={prerequisiteColumns}
+            dataSource={prerequisiteData}
+            scroll={{ y: 'calc(100% - 39px)' }}
+            size="small"
+            pagination={false}
+            locale={{ emptyText: '暂无数据' }}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'preCheck',
+      label: '执行前检查',
+      children: (
+        <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
+          <div style={{ textAlign: 'center', color: '#999' }}>执行前检查列表</div>
+        </div>
+      ),
+    },
+    {
+      key: 'atomicAnalysis',
+      label: '分析原子',
+      children: (
+        <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
+          <div style={{ textAlign: 'center', color: '#999' }}>分析原子列表</div>
+        </div>
+      ),
+    },
+    {
+      key: 'analysisResult',
+      label: '分析结果',
+      children: (
+        <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
+          <div style={{ textAlign: 'center', color: '#999' }}>分析结果列表</div>
+        </div>
+      ),
+    },
+    {
+      key: 'analysisResource',
+      label: '分析资源',
+      children: (
+        <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
+          <div style={{ textAlign: 'center', color: '#999' }}>分析资源列表</div>
+        </div>
+      ),
+    },
+    {
+      key: 'dataModel',
+      label: '数据模型',
+      children: (
+        <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
+          <div style={{ textAlign: 'center', color: '#999' }}>数据模型列表</div>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <Layout style={{ height: '100vh', width: '100%' }}>
@@ -1124,6 +1406,58 @@ const FlowChart = () => {
             }}
           />
         )}
+
+        <div 
+          style={{ 
+            position: 'relative',
+            height: `${bottomHeight}px`,
+            borderTop: '1px solid #d9d9d9'
+          }}
+        >
+          {/* 拖动条 */}
+          <div
+            style={{
+              position: 'absolute',
+              top: -10,
+              left: 0,
+              right: 0,
+              height: '20px',
+              cursor: 'row-resize',
+              zIndex: 1000,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            onMouseDown={handleMouseDown}
+          >
+            <div
+              style={{
+                width: '60px',
+                height: '3px',
+                backgroundColor: isDragging ? '#1890ff' : '#d9d9d9',
+                borderRadius: '2px',
+                transition: 'background-color 0.3s',
+              }}
+            />
+            <UpOutlined 
+              style={{
+                position: 'absolute',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: isDragging ? '#1890ff' : '#999',
+                transition: 'color 0.3s',
+              }}
+            />
+          </div>
+          <Tabs
+            items={tabItems}
+            type="card"
+            style={{ 
+              padding: '8px 16px',
+              height: '100%',
+            }}
+          />
+        </div>
       </Content>
     </Layout>
   );
