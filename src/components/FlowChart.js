@@ -64,62 +64,121 @@ const ANALYSIS_TYPE_OPTIONS = [
   { label: '定制分析', value: 'custom' }
 ];
 
-// 前置条件表单组件
+
+
+// 主组件
+const FlowChart = () => {
+  const reactFlowInstance = useReactFlow();
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [searchText, setSearchText] = useState('');
+  const [clipboard, setClipboard] = useState(null);
+  const [prerequisiteData, setPrerequisiteData] = useState([]);
+  const [bottomHeight, setBottomHeight] = useState(400);
+  const [isDragging, setIsDragging] = useState(false);
+
+
+const handleNodeDataChange = useCallback((nodeId, field, value) => {
+  console.log('节点表单数据变化:', nodeId, field, value);
+  
+  // 更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === nodeId) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value,
+          // 保留原有回调函数
+          onChange: node.data.onChange,
+          onDelete: node.data.onDelete
+        }
+      };
+    }
+    return node;
+  }));
+  
+  // 同步更新表格数据
+  setPrerequisiteData(prev => prev.map(item => {
+    if (item.key === nodeId) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+}, []);
+
+// 在自定义节点组件中添加表单字段变化处理
 const PrerequisiteForm = ({ data, onChange, isExpanded }) => {
-  const handleChange = (field, value) => {
-    onChange({
+  const handleFormChange = (field, value) => {
+    // 更新本地数据
+    const newData = {
       ...data,
       [field]: value
-    });
+    };
+    
+    // 调用父组件传入的 onChange
+    onChange(newData);
+    
+    // 同步更新到表格
+    handleNodeDataChange(data.id, field, value);
   };
-
+  
   return (
     <div>
       <Form.Item label="用例ID" style={{ marginBottom: 8 }}>
         <Input
           placeholder="请输入用例ID"
           value={data.caseId || ''}
-          onChange={(e) => handleChange('caseId', e.target.value)}
+          onChange={(e) => handleFormChange('caseId', e.target.value)}
           onClick={(e) => e.stopPropagation()}
         />
       </Form.Item>
-      <Form.Item label="是否生效" style={{ marginBottom: 8 }}>
-        <Radio.Group
-          value={data.isActive}
-          onChange={(e) => handleChange('isActive', e.target.value)}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Radio value={true}>是</Radio>
-          <Radio value={false}>否</Radio>
-        </Radio.Group>
-      </Form.Item>
       {isExpanded && (
         <>
+          <Form.Item label="是否生效" style={{ marginBottom: 8 }}>
+            <Select
+              value={data.isEnabled === undefined ? true : data.isEnabled}
+              onChange={(value) => handleFormChange('isEnabled', value)}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              options={[
+                { label: '是', value: true },
+                { label: '否', value: false }
+              ]}
+              defaultValue={true}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
           <Form.Item label="设备前置条件" style={{ marginBottom: 8 }}>
             <Input.TextArea
               placeholder="请输入设备前置条件"
-              value={data.conditions?.device || ''}
-              onChange={(e) => handleChange('conditions', { ...data.conditions, device: e.target.value })}
-              autoSize={{ minRows: 1, maxRows: 3 }}
+              value={data.devicePrerequisite || ''}
+              onChange={(e) => handleFormChange('devicePrerequisite', e.target.value)}
               onClick={(e) => e.stopPropagation()}
+              autoSize={{ minRows: 1, maxRows: 3 }}
             />
           </Form.Item>
           <Form.Item label="子架前置条件" style={{ marginBottom: 8 }}>
             <Input.TextArea
               placeholder="请输入子架前置条件"
-              value={data.conditions?.subRack || ''}
-              onChange={(e) => handleChange('conditions', { ...data.conditions, subRack: e.target.value })}
-              autoSize={{ minRows: 1, maxRows: 3 }}
+              value={data.subRackPrerequisite || ''}
+              onChange={(e) => handleFormChange('subRackPrerequisite', e.target.value)}
               onClick={(e) => e.stopPropagation()}
+              autoSize={{ minRows: 1, maxRows: 3 }}
             />
           </Form.Item>
           <Form.Item label="单板前置条件" style={{ marginBottom: 8 }}>
             <Input.TextArea
               placeholder="请输入单板前置条件"
-              value={data.conditions?.board || ''}
-              onChange={(e) => handleChange('conditions', { ...data.conditions, board: e.target.value })}
-              autoSize={{ minRows: 1, maxRows: 3 }}
+              value={data.boardPrerequisite || ''}
+              onChange={(e) => handleFormChange('boardPrerequisite', e.target.value)}
               onClick={(e) => e.stopPropagation()}
+              autoSize={{ minRows: 1, maxRows: 3 }}
             />
           </Form.Item>
         </>
@@ -127,6 +186,34 @@ const PrerequisiteForm = ({ data, onChange, isExpanded }) => {
     </div>
   );
 };
+
+// 处理表格数据编辑
+const handleTableCellEdit = useCallback((key, field, value) => {
+  // 更新表格数据
+  setPrerequisiteData(prev => prev.map(item => {
+    if (item.key === key) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+  
+  // 同步更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === key) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value
+        }
+      };
+    }
+    return node;
+  }));
+}, []);
 
 // 添加分析原子表单组件
 const AtomicAnalysisForm = ({ data, onChange, isExpanded }) => {
@@ -691,18 +778,6 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
   );
 };
 
-// 主组件
-const FlowChart = () => {
-  const reactFlowInstance = useReactFlow();
-  const [nodes, setNodes] = useState([]);
-  const [edges, setEdges] = useState([]);
-  const [contextMenu, setContextMenu] = useState(null);
-  const [searchText, setSearchText] = useState('');
-  const [clipboard, setClipboard] = useState(null);
-  const [prerequisiteData, setPrerequisiteData] = useState([]);
-  const [bottomHeight, setBottomHeight] = useState(400);
-  const [isDragging, setIsDragging] = useState(false);
-
   const onNodesChange = useCallback((changes) => {
     // 先找出要删除的节点
     const nodesToRemove = changes
@@ -856,6 +931,8 @@ const addEmptyPrerequisiteRow = useCallback(() => {
   return id; // 返回新行的ID，以便后续使用
 }, []);
 
+
+
   const handleDrop = useCallback(
     (event) => {
       event.preventDefault();
@@ -949,6 +1026,10 @@ const addEmptyPrerequisiteRow = useCallback(() => {
 
       if (nodeType === 'prerequisite') {
         const rowId = addEmptyPrerequisiteRow()
+        initialData = {
+          ...initialData,
+          id: rowId
+        }
         const newNode = {
           id: rowId,
           type: 'custom',
@@ -1114,34 +1195,6 @@ const addEmptyPrerequisiteRow = useCallback(() => {
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
-
-  // 添加表格单元格编辑处理函数
-  const handleTableCellEdit = useCallback((key, field, value) => {
-    // 更新表格数据
-    setPrerequisiteData(prev => prev.map(item => {
-      if (item.key === key) {
-        return {
-          ...item,
-          [field]: value
-        };
-      }
-      return item;
-    }));
-
-    // 同步更新节点数据
-    setNodes(nds => nds.map(node => {
-      if (node.id === key) {
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            [field]: value
-          }
-        };
-      }
-      return node;
-    }));
-  }, []);
 
   // 前置条件表格列定义
   const prerequisiteColumns = [
