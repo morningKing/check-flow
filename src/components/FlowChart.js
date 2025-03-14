@@ -11,7 +11,7 @@ import ReactFlow, {
   useReactFlow,
   ReactFlowProvider
 } from 'reactflow';
-import { Card, Button, Space, Layout, Input, Form, Radio, Dropdown, Menu, Divider, Select, Tabs, Table } from 'antd';
+import { Card, Button, Space, Layout, Input, Form, Radio, Divider, Select, Tabs, Table } from 'antd';
 import { DeleteOutlined, UpOutlined, DownOutlined } from '@ant-design/icons';
 import 'reactflow/dist/style.css';
 
@@ -71,12 +71,16 @@ const FlowChart = () => {
   const reactFlowInstance = useReactFlow();
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
-  const [contextMenu, setContextMenu] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [clipboard, setClipboard] = useState(null);
   const [prerequisiteData, setPrerequisiteData] = useState([]);
+  const [preCheckData, setPreCheckData] = useState([]);
+  const [atomicAnalysisData, setAtomicAnalysisData] = useState([]);
+  const [analysisResultData, setAnalysisResultData] = useState([]);
+  const [analysisResourceData, setAnalysisResourceData] = useState([]);
   const [bottomHeight, setBottomHeight] = useState(400);
   const [isDragging, setIsDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState('prerequisite'); // 添加活动标签页状态
 
 
 const handleNodeDataChange = useCallback((nodeId, field, value) => {
@@ -215,13 +219,53 @@ const handleTableCellEdit = useCallback((key, field, value) => {
   }));
 }, []);
 
+// 添加分析原子节点数据变化处理函数
+const handleAtomicAnalysisNodeDataChange = useCallback((nodeId, field, value) => {
+  console.log('分析原子节点表单数据变化:', nodeId, field, value);
+  
+  // 更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === nodeId) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value,
+          // 保留原有回调函数
+          onChange: node.data.onChange,
+          onDelete: node.data.onDelete
+        }
+      };
+    }
+    return node;
+  }));
+  
+  // 同步更新表格数据
+  setAtomicAnalysisData(prev => prev.map(item => {
+    if (item.key === nodeId) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+}, []);
+
 // 添加分析原子表单组件
-const AtomicAnalysisForm = ({ data, onChange, isExpanded }) => {
+const AtomicAnalysisForm = ({ data, onChange, isExpanded, nodeId }) => {
   const handleChange = (field, value) => {
-    onChange({
+    // 更新本地数据
+    const newData = {
       ...data,
       [field]: value
-    });
+    };
+    
+    // 调用父组件传入的 onChange
+    onChange(newData);
+    
+    // 同步更新到表格
+    handleAtomicAnalysisNodeDataChange(nodeId || data.id, field, value);
   };
 
   return (
@@ -280,13 +324,84 @@ const AtomicAnalysisForm = ({ data, onChange, isExpanded }) => {
   );
 };
 
+// 处理分析原子表格数据编辑
+const handleAtomicAnalysisTableCellEdit = useCallback((key, field, value) => {
+  // 更新表格数据
+  setAtomicAnalysisData(prev => prev.map(item => {
+    if (item.key === key) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+  
+  // 同步更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === key) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value,
+          // 保留原有回调函数
+          onChange: node.data.onChange,
+          onDelete: node.data.onDelete
+        }
+      };
+    }
+    return node;
+  }));
+}, []);
+
+// 添加执行前检查节点数据变化处理函数
+const handlePreCheckNodeDataChange = useCallback((nodeId, field, value) => {
+  console.log('执行前检查节点表单数据变化:', nodeId, field, value);
+  
+  // 更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === nodeId) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value,
+          // 保留原有回调函数
+          onChange: node.data.onChange,
+          onDelete: node.data.onDelete
+        }
+      };
+    }
+    return node;
+  }));
+  
+  // 同步更新表格数据
+  setPreCheckData(prev => prev.map(item => {
+    if (item.key === nodeId) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+}, []);
+
 // 添加执行前检查表单组件
-const PreCheckForm = ({ data, onChange, isExpanded }) => {
+const PreCheckForm = ({ data, onChange, isExpanded, nodeId }) => {
   const handleChange = (field, value) => {
-    onChange({
+    // 更新本地数据
+    const newData = {
       ...data,
       [field]: value
-    });
+    };
+    
+    // 调用父组件传入的 onChange
+    onChange(newData);
+    
+    // 同步更新到表格
+    handlePreCheckNodeDataChange(nodeId || data.id, field, value);
   };
 
   return (
@@ -313,6 +428,37 @@ const PreCheckForm = ({ data, onChange, isExpanded }) => {
     </div>
   );
 };
+
+// 处理执行前检查表格数据编辑
+const handlePreCheckTableCellEdit = useCallback((key, field, value) => {
+  // 更新表格数据
+  setPreCheckData(prev => prev.map(item => {
+    if (item.key === key) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+  
+  // 同步更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === key) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value,
+          // 保留原有回调函数
+          onChange: node.data.onChange,
+          onDelete: node.data.onDelete
+        }
+      };
+    }
+    return node;
+  }));
+}, []);
 
 // 修改数据模型表单组件
 const DataModelForm = ({ data, onChange, isExpanded }) => {
@@ -528,13 +674,53 @@ const DataModelForm = ({ data, onChange, isExpanded }) => {
   );
 };
 
+// 添加分析结果节点数据变化处理函数
+const handleAnalysisResultNodeDataChange = useCallback((nodeId, field, value) => {
+  console.log('分析结果节点表单数据变化:', nodeId, field, value);
+  
+  // 更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === nodeId) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value,
+          // 保留原有回调函数
+          onChange: node.data.onChange,
+          onDelete: node.data.onDelete
+        }
+      };
+    }
+    return node;
+  }));
+  
+  // 同步更新表格数据
+  setAnalysisResultData(prev => prev.map(item => {
+    if (item.key === nodeId) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+}, []);
+
 // 添加分析结果表单组件
-const AnalysisResultForm = ({ data, onChange, isExpanded }) => {
+const AnalysisResultForm = ({ data, onChange, isExpanded, nodeId }) => {
   const handleChange = (field, value) => {
-    onChange({
+    // 更新本地数据
+    const newData = {
       ...data,
       [field]: value
-    });
+    };
+    
+    // 调用父组件传入的 onChange
+    onChange(newData);
+    
+    // 同步更新到表格
+    handleAnalysisResultNodeDataChange(nodeId || data.id, field, value);
   };
 
   // 严重级别选项
@@ -562,14 +748,11 @@ const AnalysisResultForm = ({ data, onChange, isExpanded }) => {
               value={data.severityLevel}
               onChange={(value) => handleChange('severityLevel', value)}
               onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
               style={{ width: '100%' }}
-            >
-              {severityOptions.map(option => (
-                <Select.Option key={option.value} value={option.value}>
-                  {option.label}
-                </Select.Option>
-              ))}
-            </Select>
+              options={severityOptions}
+            />
           </Form.Item>
           <Form.Item label="权重值" style={{ marginBottom: 8 }}>
             <Input
@@ -603,20 +786,27 @@ const AnalysisResultForm = ({ data, onChange, isExpanded }) => {
   );
 };
 
-// 添加 AnalysisResourceForm 组件
-const AnalysisResourceForm = ({ data, onChange, isExpanded }) => {
+// 添加分析资源表单组件
+const AnalysisResourceForm = ({ data, onChange, isExpanded, nodeId }) => {
   const handleChange = (field, value) => {
-    onChange({
+    // 更新本地数据
+    const newData = {
       ...data,
       [field]: value
-    });
+    };
+    
+    // 调用父组件传入的 onChange
+    onChange(newData);
+    
+    // 同步更新到表格
+    handleAnalysisResourceNodeDataChange(nodeId || data.id, field, value);
   };
 
   return (
     <div>
-      <Form.Item label="分析资源ID" style={{ marginBottom: 8 }}>
+      <Form.Item label="资源ID" style={{ marginBottom: 8 }}>
         <Input
-          placeholder="请输入分析资源ID"
+          placeholder="请输入资源ID"
           value={data.resourceId || ''}
           onChange={(e) => handleChange('resourceId', e.target.value)}
           onClick={(e) => e.stopPropagation()}
@@ -624,36 +814,36 @@ const AnalysisResourceForm = ({ data, onChange, isExpanded }) => {
       </Form.Item>
       {isExpanded && (
         <>
-          <Form.Item label="中文当前值" style={{ marginBottom: 8 }}>
+          <Form.Item label="当前值(中文)" style={{ marginBottom: 8 }}>
             <Input.TextArea
-              placeholder="请输入中文当前值"
+              placeholder="请输入当前值(中文)"
               value={data.chCurrentValue || ''}
               onChange={(e) => handleChange('chCurrentValue', e.target.value)}
               autoSize={{ minRows: 1, maxRows: 3 }}
               onClick={(e) => e.stopPropagation()}
             />
           </Form.Item>
-          <Form.Item label="中文处理建议" style={{ marginBottom: 8 }}>
+          <Form.Item label="处理建议(中文)" style={{ marginBottom: 8 }}>
             <Input.TextArea
-              placeholder="请输入中文处理建议"
+              placeholder="请输入处理建议(中文)"
               value={data.chSuggestion || ''}
               onChange={(e) => handleChange('chSuggestion', e.target.value)}
               autoSize={{ minRows: 1, maxRows: 3 }}
               onClick={(e) => e.stopPropagation()}
             />
           </Form.Item>
-          <Form.Item label="英文当前值" style={{ marginBottom: 8 }}>
+          <Form.Item label="当前值(英文)" style={{ marginBottom: 8 }}>
             <Input.TextArea
-              placeholder="请输入英文当前值"
+              placeholder="请输入当前值(英文)"
               value={data.enCurrentValue || ''}
               onChange={(e) => handleChange('enCurrentValue', e.target.value)}
               autoSize={{ minRows: 1, maxRows: 3 }}
               onClick={(e) => e.stopPropagation()}
             />
           </Form.Item>
-          <Form.Item label="英文处理建议" style={{ marginBottom: 8 }}>
+          <Form.Item label="处理建议(英文)" style={{ marginBottom: 8 }}>
             <Input.TextArea
-              placeholder="请输入英文处理建议"
+              placeholder="请输入处理建议(英文)"
               value={data.enSuggestion || ''}
               onChange={(e) => handleChange('enSuggestion', e.target.value)}
               autoSize={{ minRows: 1, maxRows: 3 }}
@@ -665,6 +855,147 @@ const AnalysisResourceForm = ({ data, onChange, isExpanded }) => {
     </div>
   );
 };
+
+// 添加分析资源节点数据变化处理函数
+const handleAnalysisResourceNodeDataChange = useCallback((nodeId, field, value) => {
+  console.log('分析资源节点表单数据变化:', nodeId, field, value);
+  
+  // 更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === nodeId) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value,
+          // 保留原有回调函数
+          onChange: node.data.onChange,
+          onDelete: node.data.onDelete
+        }
+      };
+    }
+    return node;
+  }));
+  
+  // 同步更新表格数据
+  setAnalysisResourceData(prev => prev.map(item => {
+    if (item.key === nodeId) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+}, []);
+
+// 处理分析资源表格数据编辑
+const handleAnalysisResourceTableCellEdit = useCallback((key, field, value) => {
+  // 更新表格数据
+  setAnalysisResourceData(prev => prev.map(item => {
+    if (item.key === key) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+  
+  // 同步更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === key) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value,
+          // 保留原有回调函数
+          onChange: node.data.onChange,
+          onDelete: node.data.onDelete
+        }
+      };
+    }
+    return node;
+  }));
+}, []);
+
+// 处理分析结果表格数据编辑
+const handleAnalysisResultTableCellEdit = useCallback((key, field, value) => {
+  // 更新表格数据
+  setAnalysisResultData(prev => prev.map(item => {
+    if (item.key === key) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+  
+  // 同步更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === key) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value,
+          // 保留原有回调函数
+          onChange: node.data.onChange,
+          onDelete: node.data.onDelete
+        }
+      };
+    }
+    return node;
+  }));
+}, []);
+
+// 添加空白的分析资源行
+const addEmptyAnalysisResourceRow = useCallback(() => {
+  // 生成唯一ID
+  const id = `analysisResource-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  
+  // 创建空白数据行
+  const newRow = {
+    key: id,
+    resourceId: '',
+    chCurrentValue: '',
+    chSuggestion: '',
+    enCurrentValue: '',
+    enSuggestion: ''
+  };
+  
+  // 添加到表格数据中
+  setAnalysisResourceData(prev => [...prev, newRow]);
+  
+  console.log('已添加空白分析资源行，ID:', id);
+  
+  return id; // 返回新行的ID，以便后续使用
+}, []);
+
+// 添加空白的分析结果行
+const addEmptyAnalysisResultRow = useCallback(() => {
+  // 生成唯一ID
+  const id = `analysisResult-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  
+  // 创建空白数据行
+  const newRow = {
+    key: id,
+    resultId: '',
+    severityLevel: 'hint',
+    weightValue: '',
+    resultOutput: '',
+    branchCondition: ''
+  };
+  
+  // 添加到表格数据中
+  setAnalysisResultData(prev => [...prev, newRow]);
+  
+  console.log('已添加空白分析结果行，ID:', id);
+  
+  return id; // 返回新行的ID，以便后续使用
+}, []);
 
 // 自定义节点组件
 const CustomNode = ({ id, data, onDelete, onChange }) => {
@@ -693,7 +1024,8 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
     const commonProps = {
       data,
       onChange: (newData) => handleDataChange(id, newData),
-      isExpanded
+      isExpanded,
+      nodeId: id // 传递节点ID
     };
 
     switch (data.type) {
@@ -717,7 +1049,13 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
   return (
     <div 
       style={{ position: 'relative' }}
-      onClick={e => e.stopPropagation()}
+      onClick={e => {
+        e.stopPropagation();
+        // 点击节点时切换到对应的标签页
+        if (data?.type) {
+          setActiveTab(data.type);
+        }
+      }}
     >
       <Card
         size="small"
@@ -804,12 +1142,79 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
           // 如果是前置条件节点，删除表格对应的数据行
           if (isPrerequisite) {
             console.log('删除前置条件表格行:', nodeId);
-            console.log('删除前表格数据:', prerequisiteData);
             
             setPrerequisiteData(prevData => {
               // 过滤掉要删除的节点对应的表格行
               const newData = prevData.filter(item => item.key !== nodeId);
-              console.log('删除后表格数据:', newData);
+              console.log('删除后前置条件表格数据:', newData);
+              return newData;
+            });
+          }
+          
+          // 判断是否是执行前检查节点
+          const isPreCheck = 
+            nodeToDelete.type === 'preCheck' || 
+            (nodeToDelete.type === 'custom' && nodeToDelete.data?.type === 'preCheck');
+          
+          // 如果是执行前检查节点，删除表格对应的数据行
+          if (isPreCheck) {
+            console.log('删除执行前检查表格行:', nodeId);
+            
+            setPreCheckData(prevData => {
+              // 过滤掉要删除的节点对应的表格行
+              const newData = prevData.filter(item => item.key !== nodeId);
+              console.log('删除后执行前检查表格数据:', newData);
+              return newData;
+            });
+          }
+          
+          // 判断是否是分析原子节点
+          const isAtomicAnalysis = 
+            nodeToDelete.type === 'atomicAnalysis' || 
+            (nodeToDelete.type === 'custom' && nodeToDelete.data?.type === 'atomicAnalysis');
+          
+          // 如果是分析原子节点，删除表格对应的数据行
+          if (isAtomicAnalysis) {
+            console.log('删除分析原子表格行:', nodeId);
+            
+            setAtomicAnalysisData(prevData => {
+              // 过滤掉要删除的节点对应的表格行
+              const newData = prevData.filter(item => item.key !== nodeId);
+              console.log('删除后分析原子表格数据:', newData);
+              return newData;
+            });
+          }
+          
+          // 判断是否是分析结果节点
+          const isAnalysisResult = 
+            nodeToDelete.type === 'analysisResult' || 
+            (nodeToDelete.type === 'custom' && nodeToDelete.data?.type === 'analysisResult');
+          
+          // 如果是分析结果节点，删除表格对应的数据行
+          if (isAnalysisResult) {
+            console.log('删除分析结果表格行:', nodeId);
+            
+            setAnalysisResultData(prevData => {
+              // 过滤掉要删除的节点对应的表格行
+              const newData = prevData.filter(item => item.key !== nodeId);
+              console.log('删除后分析结果表格数据:', newData);
+              return newData;
+            });
+          }
+          
+          // 判断是否是分析资源节点
+          const isAnalysisResource = 
+            nodeToDelete.type === 'analysisResource' || 
+            (nodeToDelete.type === 'custom' && nodeToDelete.data?.type === 'analysisResource');
+          
+          // 如果是分析资源节点，删除表格对应的数据行
+          if (isAnalysisResource) {
+            console.log('删除分析资源表格行:', nodeId);
+            
+            setAnalysisResourceData(prevData => {
+              // 过滤掉要删除的节点对应的表格行
+              const newData = prevData.filter(item => item.key !== nodeId);
+              console.log('删除后分析资源表格数据:', newData);
               return newData;
             });
           }
@@ -819,7 +1224,7 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
     
     // 应用节点变化
     setNodes((nds) => applyNodeChanges(changes, nds));
-  }, [nodes, prerequisiteData]);
+  }, [nodes]);
 
   const onEdgesChange = useCallback((changes) => {
     setEdges((eds) => applyEdgeChanges(changes, eds));
@@ -909,29 +1314,70 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
   }, [nodes]);
 
   // 添加空白的前置条件行
-const addEmptyPrerequisiteRow = useCallback(() => {
-  // 生成唯一ID
-  const id = `prerequisite-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  
-  // 创建空白数据行
-  const newRow = {
-    key: id,
-    caseId: '',
-    isEnabled: true,
-    devicePrerequisite: '',
-    subRackPrerequisite: '',
-    boardPrerequisite: ''
-  };
-  
-  // 添加到表格数据中
-  setPrerequisiteData(prev => [...prev, newRow]);
-  
-  console.log('已添加空白前置条件行，ID:', id);
-  
-  return id; // 返回新行的ID，以便后续使用
-}, []);
+  const addEmptyPrerequisiteRow = useCallback(() => {
+    // 生成唯一ID
+    const id = `prerequisite-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    
+    // 创建空白数据行
+    const newRow = {
+      key: id,
+      caseId: '',
+      isEnabled: true,
+      devicePrerequisite: '',
+      subRackPrerequisite: '',
+      boardPrerequisite: ''
+    };
+    
+    // 添加到表格数据中
+    setPrerequisiteData(prev => [...prev, newRow]);
+    
+    console.log('已添加空白前置条件行，ID:', id);
+    
+    return id; // 返回新行的ID，以便后续使用
+  }, []);
 
+  // 添加空白的执行前检查行
+  const addEmptyPreCheckRow = useCallback(() => {
+    // 生成唯一ID
+    const id = `preCheck-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    
+    // 创建空白数据行
+    const newRow = {
+      key: id,
+      analysisItemId: '',
+      checkCondition: ''
+    };
+    
+    // 添加到表格数据中
+    setPreCheckData(prev => [...prev, newRow]);
+    
+    console.log('已添加空白执行前检查行，ID:', id);
+    
+    return id; // 返回新行的ID，以便后续使用
+  }, []);
 
+  // 添加空白的分析原子行
+  const addEmptyAtomicAnalysisRow = useCallback(() => {
+    // 生成唯一ID
+    const id = `atomicAnalysis-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    
+    // 创建空白数据行
+    const newRow = {
+      key: id,
+      atomicId: '',
+      analysisType: 'expression', // 默认表达式分析
+      ignoreResult: false,        // 默认不忽略结果
+      analysisRule: '',
+      parameterRefresh: ''
+    };
+    
+    // 添加到表格数据中
+    setAtomicAnalysisData(prev => [...prev, newRow]);
+    
+    console.log('已添加空白分析原子行，ID:', id);
+    
+    return id; // 返回新行的ID，以便后续使用
+  }, []);
 
   const handleDrop = useCallback(
     (event) => {
@@ -965,7 +1411,7 @@ const addEmptyPrerequisiteRow = useCallback(() => {
               board: ''
             },
             caseId: '',
-            isActive: true
+            isEnabled: true
           };
           break;
         case 'atomicAnalysis':
@@ -1006,7 +1452,10 @@ const addEmptyPrerequisiteRow = useCallback(() => {
           initialData = {
             ...initialData,
             resultId: '',
-            branchCondition: ''  // 添加分支条件字段初始化
+            severityLevel: 'hint',       // 默认为提示级别
+            weightValue: '',
+            resultOutput: '',
+            branchCondition: ''
           };
           break;
         case 'analysisResource':
@@ -1037,18 +1486,71 @@ const addEmptyPrerequisiteRow = useCallback(() => {
           data: initialData
         };
         setNodes((nds) => [...nds, newNode]);
+      } else if (nodeType === 'preCheck') {
+        const rowId = addEmptyPreCheckRow()
+        initialData = {
+          ...initialData,
+          id: rowId
+        }
+        const newNode = {
+          id: rowId,
+          type: 'custom',
+          position,
+          data: initialData
+        };
+        setNodes((nds) => [...nds, newNode]);
+      } else if (nodeType === 'atomicAnalysis') {
+        const rowId = addEmptyAtomicAnalysisRow()
+        initialData = {
+          ...initialData,
+          id: rowId
+        }
+        const newNode = {
+          id: rowId,
+          type: 'custom',
+          position,
+          data: initialData
+        };
+        setNodes((nds) => [...nds, newNode]);
+      } else if (nodeType === 'analysisResult') {
+        const rowId = addEmptyAnalysisResultRow()
+        initialData = {
+          ...initialData,
+          id: rowId
+        }
+        const newNode = {
+          id: rowId,
+          type: 'custom',
+          position,
+          data: initialData
+        };
+        setNodes((nds) => [...nds, newNode]);
+      } else if (nodeType === 'analysisResource') {
+        const rowId = addEmptyAnalysisResourceRow()
+        initialData = {
+          ...initialData,
+          id: rowId
+        }
+        const newNode = {
+          id: rowId,
+          type: 'custom',
+          position,
+          data: initialData
+        };
+        setNodes((nds) => [...nds, newNode]);
       } else {
-      const newNode = {
-            id: `node${nodes.length + 1}`,
-            type: 'custom',
-            position,
-            data: initialData
-          };
-          setNodes((nds) => [...nds, newNode]);
-          }
+        const newNode = {
+          id: `node${nodes.length + 1}`,
+          type: 'custom',
+          position,
+          data: initialData
+        };
+        setNodes((nds) => [...nds, newNode]);
+      }
       
     },
-    [nodes, reactFlowInstance, addEmptyPrerequisiteRow]
+    [nodes, reactFlowInstance, addEmptyPrerequisiteRow, addEmptyPreCheckRow, 
+     addEmptyAtomicAnalysisRow, addEmptyAnalysisResultRow, addEmptyAnalysisResourceRow]
   );
 
   const handleDragOver = useCallback((event) => {
@@ -1056,25 +1558,11 @@ const addEmptyPrerequisiteRow = useCallback(() => {
     event.dataTransfer.dropEffect = 'move';
   }, []);
 
-  const onNodeContextMenu = useCallback((event, node) => {
-    event.preventDefault();
-    setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
-      node: node
-    });
-  }, []);
-
-  const onPaneClick = useCallback(() => {
-    setContextMenu(null);
-  }, []);
-
   const onDeleteNode = useCallback((nodeId) => {
     setNodes((nodes) => nodes.filter((node) => node.id !== nodeId));
     setEdges((edges) => edges.filter(
       (edge) => edge.source !== nodeId && edge.target !== nodeId
     ));
-    setContextMenu(null);
   }, []);
 
   const updateNodeData = useCallback((nodeId, newData) => {
@@ -1273,6 +1761,265 @@ const addEmptyPrerequisiteRow = useCallback(() => {
     }
   ];
 
+  // 执行前检查表格列定义
+  const preCheckColumns = [
+    {
+      title: '分析项ID',
+      dataIndex: 'analysisItemId',
+      key: 'analysisItemId',
+      width: 150,
+      render: (text, record) => (
+        <Input
+          value={text}
+          onChange={(e) => handlePreCheckTableCellEdit(record.key, 'analysisItemId', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )
+    },
+    {
+      title: '检查条件',
+      dataIndex: 'checkCondition',
+      key: 'checkCondition',
+      width: 600,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handlePreCheckTableCellEdit(record.key, 'checkCondition', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    }
+  ];
+
+  // 分析原子表格列定义
+  const atomicAnalysisColumns = [
+    {
+      title: '原子ID',
+      dataIndex: 'atomicId',
+      key: 'atomicId',
+      width: 150,
+      render: (text, record) => (
+        <Input
+          value={text}
+          onChange={(e) => handleAtomicAnalysisTableCellEdit(record.key, 'atomicId', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )
+    },
+    {
+      title: '分析类型',
+      dataIndex: 'analysisType',
+      key: 'analysisType',
+      width: 120,
+      render: (value, record) => (
+        <Select
+          value={value}
+          onChange={(value) => handleAtomicAnalysisTableCellEdit(record.key, 'analysisType', value)}
+          onClick={(e) => e.stopPropagation()}
+          options={ANALYSIS_TYPE_OPTIONS}
+          style={{ width: '100%' }}
+        />
+      )
+    },
+    {
+      title: '忽略结果',
+      dataIndex: 'ignoreResult',
+      key: 'ignoreResult',
+      width: 100,
+      render: (value, record) => (
+        <Select
+          value={value}
+          onChange={(value) => handleAtomicAnalysisTableCellEdit(record.key, 'ignoreResult', value)}
+          onClick={(e) => e.stopPropagation()}
+          options={[
+            { label: '是', value: true },
+            { label: '否', value: false }
+          ]}
+          style={{ width: '100%' }}
+        />
+      )
+    },
+    {
+      title: '分析规则',
+      dataIndex: 'analysisRule',
+      key: 'analysisRule',
+      width: 300,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleAtomicAnalysisTableCellEdit(record.key, 'analysisRule', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '参数刷新',
+      dataIndex: 'parameterRefresh',
+      key: 'parameterRefresh',
+      width: 300,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleAtomicAnalysisTableCellEdit(record.key, 'parameterRefresh', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    }
+  ];
+
+  // 分析结果表格列定义
+  const analysisResultColumns = [
+    {
+      title: '结果ID',
+      dataIndex: 'resultId',
+      key: 'resultId',
+      width: 150,
+      render: (text, record) => (
+        <Input
+          value={text}
+          onChange={(e) => handleAnalysisResultTableCellEdit(record.key, 'resultId', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )
+    },
+    {
+      title: '严重级别',
+      dataIndex: 'severityLevel',
+      key: 'severityLevel',
+      width: 120,
+      render: (value, record) => (
+        <Select
+          value={value}
+          onChange={(value) => handleAnalysisResultTableCellEdit(record.key, 'severityLevel', value)}
+          onClick={(e) => e.stopPropagation()}
+          options={[
+            { label: '提示', value: 'hint' },
+            { label: '不达标', value: 'unqualified' },
+            { label: '严重不达标', value: 'severely_unqualified' }
+          ]}
+          style={{ width: '100%' }}
+        />
+      )
+    },
+    {
+      title: '权重值',
+      dataIndex: 'weightValue',
+      key: 'weightValue',
+      width: 100,
+      render: (text, record) => (
+        <Input
+          value={text}
+          onChange={(e) => handleAnalysisResultTableCellEdit(record.key, 'weightValue', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )
+    },
+    {
+      title: '结果输出',
+      dataIndex: 'resultOutput',
+      key: 'resultOutput',
+      width: 300,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleAnalysisResultTableCellEdit(record.key, 'resultOutput', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '分支条件',
+      dataIndex: 'branchCondition',
+      key: 'branchCondition',
+      width: 300,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleAnalysisResultTableCellEdit(record.key, 'branchCondition', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    }
+  ];
+
+  // 分析资源表格列定义
+  const analysisResourceColumns = [
+    {
+      title: '资源ID',
+      dataIndex: 'resourceId',
+      key: 'resourceId',
+      width: 150,
+      render: (text, record) => (
+        <Input
+          value={text}
+          onChange={(e) => handleAnalysisResourceTableCellEdit(record.key, 'resourceId', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )
+    },
+    {
+      title: '当前值(中文)',
+      dataIndex: 'chCurrentValue',
+      key: 'chCurrentValue',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleAnalysisResourceTableCellEdit(record.key, 'chCurrentValue', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '处理建议(中文)',
+      dataIndex: 'chSuggestion',
+      key: 'chSuggestion',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleAnalysisResourceTableCellEdit(record.key, 'chSuggestion', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '当前值(英文)',
+      dataIndex: 'enCurrentValue',
+      key: 'enCurrentValue',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleAnalysisResourceTableCellEdit(record.key, 'enCurrentValue', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '处理建议(英文)',
+      dataIndex: 'enSuggestion',
+      key: 'enSuggestion',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleAnalysisResourceTableCellEdit(record.key, 'enSuggestion', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    }
+  ];
+
   // 定义标签页内容
   const tabItems = [
     {
@@ -1296,7 +2043,14 @@ const addEmptyPrerequisiteRow = useCallback(() => {
       label: '执行前检查',
       children: (
         <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
-          <div style={{ textAlign: 'center', color: '#999' }}>执行前检查列表</div>
+          <Table
+            columns={preCheckColumns}
+            dataSource={preCheckData}
+            scroll={{ y: 'calc(100% - 39px)' }}
+            size="small"
+            pagination={false}
+            locale={{ emptyText: '暂无数据' }}
+          />
         </div>
       ),
     },
@@ -1305,7 +2059,14 @@ const addEmptyPrerequisiteRow = useCallback(() => {
       label: '分析原子',
       children: (
         <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
-          <div style={{ textAlign: 'center', color: '#999' }}>分析原子列表</div>
+          <Table
+            columns={atomicAnalysisColumns}
+            dataSource={atomicAnalysisData}
+            scroll={{ y: 'calc(100% - 39px)' }}
+            size="small"
+            pagination={false}
+            locale={{ emptyText: '暂无数据' }}
+          />
         </div>
       ),
     },
@@ -1314,7 +2075,14 @@ const addEmptyPrerequisiteRow = useCallback(() => {
       label: '分析结果',
       children: (
         <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
-          <div style={{ textAlign: 'center', color: '#999' }}>分析结果列表</div>
+          <Table
+            columns={analysisResultColumns}
+            dataSource={analysisResultData}
+            scroll={{ y: 'calc(100% - 39px)' }}
+            size="small"
+            pagination={false}
+            locale={{ emptyText: '暂无数据' }}
+          />
         </div>
       ),
     },
@@ -1323,7 +2091,14 @@ const addEmptyPrerequisiteRow = useCallback(() => {
       label: '分析资源',
       children: (
         <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
-          <div style={{ textAlign: 'center', color: '#999' }}>分析资源列表</div>
+          <Table
+            columns={analysisResourceColumns}
+            dataSource={analysisResourceData}
+            scroll={{ y: 'calc(100% - 39px)' }}
+            size="small"
+            pagination={false}
+            locale={{ emptyText: '暂无数据' }}
+          />
         </div>
       ),
     },
@@ -1365,8 +2140,6 @@ const addEmptyPrerequisiteRow = useCallback(() => {
               onConnect={onConnect}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
-              onNodeContextMenu={onNodeContextMenu}
-              onPaneClick={onPaneClick}
               onConnectStart={onConnectStart}
               onConnectEnd={onConnectEnd}
               fitView
@@ -1387,6 +2160,12 @@ const addEmptyPrerequisiteRow = useCallback(() => {
               multiSelectionKeyCode={['Control', 'Meta']}
               deleteKeyCode={['Backspace', 'Delete']}
               isValidConnection={isValidConnection}
+              onNodeClick={(event, node) => {
+                // 点击节点时切换到对应的标签页
+                if (node.data?.type) {
+                  setActiveTab(node.data.type);
+                }
+              }}
             >
               <Background />
               <Controls />
@@ -1438,28 +2217,6 @@ const addEmptyPrerequisiteRow = useCallback(() => {
           </div>
         </div>
 
-        {contextMenu && (
-          <Dropdown
-            open={true}
-            trigger={[]}
-            overlay={
-              <Menu>
-                <Menu.Item
-                  key="delete"
-                  onClick={() => onDeleteNode(contextMenu.node.id)}
-                >
-                  删除节点
-                </Menu.Item>
-              </Menu>
-            }
-            style={{
-              position: 'fixed',
-              left: contextMenu.x,
-              top: contextMenu.y,
-            }}
-          />
-        )}
-
         <div 
           style={{ 
             position: 'relative',
@@ -1509,6 +2266,8 @@ const addEmptyPrerequisiteRow = useCallback(() => {
               padding: '8px 16px',
               height: '100%',
             }}
+            activeKey={activeTab}
+            onChange={setActiveTab}
           />
         </div>
       </Content>
