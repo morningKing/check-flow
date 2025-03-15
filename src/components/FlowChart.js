@@ -12,7 +12,7 @@ import ReactFlow, {
   ReactFlowProvider
 } from 'reactflow';
 import { Card, Button, Space, Layout, Input, Form, Radio, Divider, Select, Tabs, Table } from 'antd';
-import { DeleteOutlined, UpOutlined, DownOutlined } from '@ant-design/icons';
+import { DeleteOutlined, UpOutlined, DownOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import 'reactflow/dist/style.css';
 
 const { Content } = Layout;
@@ -64,7 +64,109 @@ const ANALYSIS_TYPE_OPTIONS = [
   { label: '定制分析', value: 'custom' }
 ];
 
-
+// 自定义边
+const CustomEdge = ({ id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, data, markerEnd }) => {
+  // 获取源节点和目标节点
+  const reactFlowInstance = useReactFlow();
+  const nodes = reactFlowInstance.getNodes();
+  const sourceNode = nodes.find(node => node.id === source);
+  const targetNode = nodes.find(node => node.id === target);
+  
+  // 默认样式
+  let edgeStyle = {
+    ...style,
+    strokeWidth: 2,
+    stroke: '#666'
+  };
+  
+  let edgePath = '';
+  
+  // 根据节点类型设置不同的连线样式
+  if (sourceNode && targetNode) {
+    const sourceType = sourceNode.data?.type;
+    const targetType = targetNode.data?.type;
+    
+    // 数据模型指向分析原子的连接
+    if (sourceType === 'dataModel' && targetType === 'atomicAnalysis') {
+      edgeStyle = {
+        ...edgeStyle,
+        stroke: '#FFEB3B',  // 黄色
+        strokeWidth: 3,
+        strokeDasharray: '5,5'  // 虚线效果
+      };
+    }
+    // 前置条件和执行前检查的连接
+    else if (sourceType === 'prerequisite' && targetType === 'preCheck') {
+      edgeStyle = {
+        ...edgeStyle,
+        stroke: '#1890FF',  // 蓝色
+        strokeWidth: 2
+      };
+    }
+    // 执行前检查和分析原子的连接
+    else if (sourceType === 'preCheck' && targetType === 'atomicAnalysis') {
+      edgeStyle = {
+        ...edgeStyle,
+        stroke: '#52C41A',  // 绿色
+        strokeWidth: 2
+      };
+    }
+    // 分析原子和分析结果的连接
+    else if (sourceType === 'atomicAnalysis' && targetType === 'analysisResult') {
+      edgeStyle = {
+        ...edgeStyle,
+        stroke: '#722ED1',  // 紫色
+        strokeWidth: 2
+      };
+    }
+    // 分析结果和分析资源的连接
+    else if (sourceType === 'analysisResult' && targetType === 'analysisResource') {
+      edgeStyle = {
+        ...edgeStyle,
+        stroke: '#F5222D',  // 红色
+        strokeWidth: 2
+      };
+    }
+  }
+  
+  // 计算路径点
+  const deltaX = targetX - sourceX;
+  const deltaY = targetY - sourceY;
+  
+  // 使用贝塞尔曲线创建更平滑的路径
+  const controlPointX1 = sourceX + deltaX * 0.25;
+  const controlPointY1 = sourceY + deltaY * 0.1;
+  const controlPointX2 = sourceX + deltaX * 0.75;
+  const controlPointY2 = targetY - deltaY * 0.1;
+  
+  edgePath = `M ${sourceX} ${sourceY} C ${controlPointX1} ${controlPointY1}, ${controlPointX2} ${controlPointY2}, ${targetX} ${targetY}`;
+  
+  return (
+    <g>
+      <path 
+        id={id} 
+        style={edgeStyle} 
+        className="react-flow__edge-path" 
+        d={edgePath} 
+        markerEnd={markerEnd}
+      />
+      {/* 添加过渡效果的路径 */}
+      {edgeStyle.animated && (
+        <path
+          style={{
+            ...edgeStyle,
+            strokeWidth: 1,
+            strokeDasharray: '5,10',
+            strokeDashoffset: 0,
+            animation: 'flow 0.5s linear infinite'
+          }}
+          className="react-flow__edge-path-animated"
+          d={edgePath}
+        />
+      )}
+    </g>
+  );
+};
 
 // 主组件
 const FlowChart = () => {
@@ -78,9 +180,13 @@ const FlowChart = () => {
   const [atomicAnalysisData, setAtomicAnalysisData] = useState([]);
   const [analysisResultData, setAnalysisResultData] = useState([]);
   const [analysisResourceData, setAnalysisResourceData] = useState([]);
+  const [dataModelData, setDataModelData] = useState([]); // 添加数据模型表格数据状态
   const [bottomHeight, setBottomHeight] = useState(400);
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState('prerequisite'); // 添加活动标签页状态
+  const [selectedNodeId, setSelectedNodeId] = useState(null); // 添加选中节点ID状态
+  const [showRightPanel, setShowRightPanel] = useState(true); // 添加右侧面板显示状态
+  const [nodesExpanded, setNodesExpanded] = useState(true); // 添加节点折叠状态
 
 
 const handleNodeDataChange = useCallback((nodeId, field, value) => {
@@ -461,12 +567,19 @@ const handlePreCheckTableCellEdit = useCallback((key, field, value) => {
 }, []);
 
 // 修改数据模型表单组件
-const DataModelForm = ({ data, onChange, isExpanded }) => {
+const DataModelForm = ({ data, onChange, isExpanded, nodeId }) => {
   const handleChange = (field, value) => {
-    onChange({
+    // 更新本地数据
+    const newData = {
       ...data,
       [field]: value
-    });
+    };
+    
+    // 调用父组件传入的 onChange
+    onChange(newData);
+    
+    // 同步更新到表格
+    handleDataModelNodeDataChange(nodeId || data.id, field, value);
   };
 
   // 更新解析类型选项，添加 multi_table_value
@@ -951,6 +1064,39 @@ const handleAnalysisResultTableCellEdit = useCallback((key, field, value) => {
   }));
 }, []);
 
+// 处理数据模型表格数据编辑
+const handleDataModelTableCellEdit = useCallback((key, field, value) => {
+  console.log('数据模型表格数据编辑:', key, field, value);
+  
+  // 更新表格数据
+  setDataModelData(prev => prev.map(item => {
+    if (item.key === key) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+  
+  // 同步更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === key) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value,
+          // 保留原有回调函数
+          onChange: node.data.onChange,
+          onDelete: node.data.onDelete
+        }
+      };
+    }
+    return node;
+  }));
+}, []);
+
 // 添加空白的分析资源行
 const addEmptyAnalysisResourceRow = useCallback(() => {
   // 生成唯一ID
@@ -997,9 +1143,81 @@ const addEmptyAnalysisResultRow = useCallback(() => {
   return id; // 返回新行的ID，以便后续使用
 }, []);
 
+// 添加空白的数据模型行
+const addEmptyDataModelRow = useCallback(() => {
+  // 生成唯一ID
+  const id = `dataModel-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  
+  // 创建空白数据行
+  const newRow = {
+    key: id,
+    modelId: '',
+    parseType: 'dump_table_value',
+    command: '',
+    parameters: '',
+    tableHeader: '',
+    startMark: '',
+    endMark: '',
+    lineRegex: '',
+    systemParams: '',
+    joinType: 'left_join',
+    joinFields: '',
+    extraOperation: ''
+  };
+  
+  // 添加到表格数据中
+  setDataModelData(prev => [...prev, newRow]);
+  
+  console.log('已添加空白数据模型行，ID:', id);
+  
+  return id; // 返回新行的ID，以便后续使用
+}, []);
+
+// 添加数据模型节点数据变化处理函数
+const handleDataModelNodeDataChange = useCallback((nodeId, field, value) => {
+  console.log('数据模型节点表单数据变化:', nodeId, field, value);
+  
+  // 更新节点数据
+  setNodes(nds => nds.map(node => {
+    if (node.id === nodeId) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          [field]: value,
+          // 保留原有回调函数
+          onChange: node.data.onChange,
+          onDelete: node.data.onDelete
+        }
+      };
+    }
+    return node;
+  }));
+  
+  // 同步更新表格数据
+  setDataModelData(prev => prev.map(item => {
+    if (item.key === nodeId) {
+      return {
+        ...item,
+        [field]: value
+      };
+    }
+    return item;
+  }));
+}, []);
+
 // 自定义节点组件
-const CustomNode = ({ id, data, onDelete, onChange }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+const CustomNode = ({ id, data, onDelete, onChange, selected }) => {
+  // 使用外部传入的isExpanded属性，如果未定义则默认为true
+  const [isExpanded, setIsExpanded] = useState(data.isExpanded !== undefined ? data.isExpanded : true);
+  
+  // 当外部数据isExpanded属性改变时更新本地状态
+  useEffect(() => {
+    if (data.isExpanded !== undefined) {
+      setIsExpanded(data.isExpanded);
+    }
+  }, [data.isExpanded]);
+  
   const nodeConfig = NODE_TYPES[data?.type] || {
     color: '#f0f0f0',
     borderColor: '#d9d9d9',
@@ -1013,8 +1231,12 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
 
   const handleStyle = {
     background: nodeConfig.borderColor,
-    width: '8px',
-    height: '8px'
+    width: '10px',
+    height: '10px',
+    border: '2px solid white',
+    borderRadius: '50%',
+    boxShadow: '0 0 4px rgba(0,0,0,0.2)',
+    transition: 'all 0.3s ease'
   };
 
   // 根据节点类型渲染不同的内容
@@ -1046,6 +1268,14 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
     }
   };
 
+  // 根据选中状态计算边框样式
+  const borderStyle = selected 
+    ? `3px solid ${nodeConfig.borderColor}` 
+    : `1px solid ${nodeConfig.borderColor}`;
+  const boxShadow = selected 
+    ? `0 0 10px ${nodeConfig.borderColor}` 
+    : 'none';
+
   return (
     <div 
       style={{ position: 'relative' }}
@@ -1054,6 +1284,7 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
         // 点击节点时切换到对应的标签页
         if (data?.type) {
           setActiveTab(data.type);
+          setSelectedNodeId(id); // 设置选中节点ID
         }
       }}
     >
@@ -1063,7 +1294,9 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
         style={{
           width: ['prerequisite', 'atomicAnalysis', 'preCheck', 'dataModel', 'analysisResult'].includes(data?.type) ? 300 : 200,
           backgroundColor: nodeConfig.color,
-          borderColor: nodeConfig.borderColor,
+          border: borderStyle, // 使用计算的边框样式
+          boxShadow: boxShadow, // 添加阴影效果
+          transition: 'all 0.2s ease', // 添加过渡效果
         }}
         extra={
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1218,6 +1451,23 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
               return newData;
             });
           }
+
+          // 判断是否是数据模型节点
+          const isDataModel = 
+            nodeToDelete.type === 'dataModel' || 
+            (nodeToDelete.type === 'custom' && nodeToDelete.data?.type === 'dataModel');
+          
+          // 如果是数据模型节点，删除表格对应的数据行
+          if (isDataModel) {
+            console.log('删除数据模型表格行:', nodeId);
+            
+            setDataModelData(prevData => {
+              // 过滤掉要删除的节点对应的表格行
+              const newData = prevData.filter(item => item.key !== nodeId);
+              console.log('删除后数据模型表格数据:', newData);
+              return newData;
+            });
+          }
         }
       });
     }
@@ -1236,16 +1486,25 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
 
     if (!sourceNode || !targetNode) return false;
 
+    // 获取节点类型
+    const sourceType = sourceNode.data?.type || sourceNode.type;
+    const targetType = targetNode.data?.type || targetNode.type;
+
     // 如果目标节点是分析结果节点
-    if (targetNode.type === 'analysisResult') {
+    if (targetType === 'analysisResult') {
       // 只允许来自执行前检查节点或分析原子节点的连接
-      if (sourceNode.type !== 'preCheck' && sourceNode.type !== 'atomicAnalysis') {
+      if (sourceType !== 'preCheck' && sourceType !== 'atomicAnalysis') {
         return false;
       }
     }
 
+    // 确保分析原子不能指向数据模型，只能由数据模型指向分析原子
+    if (sourceType === 'atomicAnalysis' && targetType === 'dataModel') {
+      return false;
+    }
+
     // 数据模型指向分析原子的连接样式
-    if (sourceNode.type === 'dataModel' && targetNode.type === 'atomicAnalysis') {
+    if (sourceType === 'dataModel' && targetType === 'atomicAnalysis') {
       return {
         valid: true,
         style: { stroke: '#FFEB3B' }
@@ -1253,8 +1512,8 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
     }
 
     // 数据模型的其他连接规则
-    if (sourceNode.type === 'dataModel') {
-      return targetNode.type === 'atomicAnalysis' || targetNode.type === 'dataModel';
+    if (sourceType === 'dataModel') {
+      return targetType === 'atomicAnalysis' || targetType === 'dataModel';
     }
 
     return true;
@@ -1264,30 +1523,52 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
     if (!nodeId) return;
 
     const sourceNode = nodes.find(node => node.id === nodeId);
+    if (!sourceNode) return;
+    
+    // 获取源节点类型
+    const sourceType = sourceNode.data?.type || sourceNode.type;
     
     setNodes((nds) =>
       nds.map((node) => {
-        if (sourceNode) {
-          // 如果开始连接的是执行前检查节点或分析原子节点
-          if (sourceNode.type === 'preCheck' || sourceNode.type === 'atomicAnalysis') {
-            // 只高亮分析结果节点
-            if (node.type === 'analysisResult') {
-              node.style = { ...node.style, opacity: 1 };
-            } else {
-              node.style = { ...node.style, opacity: 0.2 };
-            }
-          } else {
-            // 其他节点的原有高亮逻辑
-            if (sourceNode.type === 'dataModel') {
-              if (node.type === 'atomicAnalysis' || node.type === 'dataModel') {
-                node.style = { ...node.style, opacity: 1 };
-              } else {
-                node.style = { ...node.style, opacity: 0.2 };
-              }
-            }
+        // 获取目标节点类型
+        const nodeType = node.data?.type || node.type;
+        
+        // 默认设置为半透明
+        let opacity = 0.2;
+        
+        // 根据不同情况高亮可连接的节点
+        if (sourceType === 'dataModel') {
+          // 数据模型只能连接到分析原子或其他数据模型
+          if (nodeType === 'atomicAnalysis' || nodeType === 'dataModel') {
+            opacity = 1;
+          }
+        } else if (sourceType === 'atomicAnalysis') {
+          // 分析原子可以连接到分析结果，但不能连接到数据模型
+          if (nodeType === 'analysisResult' && nodeType !== 'dataModel') {
+            opacity = 1;
+          }
+        } else if (sourceType === 'preCheck') {
+          // 执行前检查可以连接到分析原子和分析结果
+          if (nodeType === 'atomicAnalysis' || nodeType === 'analysisResult') {
+            opacity = 1;
+          }
+        } else if (sourceType === 'prerequisite') {
+          // 前置条件可以连接到执行前检查
+          if (nodeType === 'preCheck') {
+            opacity = 1;
+          }
+        } else if (sourceType === 'analysisResult') {
+          // 分析结果可以连接到分析资源
+          if (nodeType === 'analysisResource') {
+            opacity = 1;
           }
         }
-        return node;
+        
+        // 设置不透明度
+        return {
+          ...node,
+          style: { ...node.style, opacity }
+        };
       })
     );
   }, [nodes]);
@@ -1305,9 +1586,47 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
     const sourceNode = nodes.find(node => node.id === params.source);
     const targetNode = nodes.find(node => node.id === params.target);
 
-    // 为数据模型指向分析原子的连接添加样式
-    if (sourceNode?.type === 'dataModel' && targetNode?.type === 'atomicAnalysis') {
-      params.style = { stroke: '#FFEB3B' };  // 设置为黄色
+    // 根据不同节点类型设置不同的连线样式
+    if (sourceNode && targetNode) {
+      const sourceType = sourceNode.data?.type;
+      const targetType = targetNode.data?.type;
+      
+      // 数据模型指向分析原子的连接
+      if (sourceType === 'dataModel' && targetType === 'atomicAnalysis') {
+        params.style = { 
+          stroke: '#FFEB3B',  // 黄色
+          strokeWidth: 3,
+          strokeDasharray: '5,5'  // 虚线效果
+        };
+      }
+      // 前置条件和执行前检查的连接
+      else if (sourceType === 'prerequisite' && targetType === 'preCheck') {
+        params.style = { 
+          stroke: '#1890FF',  // 蓝色
+          strokeWidth: 2
+        };
+      }
+      // 执行前检查和分析原子的连接
+      else if (sourceType === 'preCheck' && targetType === 'atomicAnalysis') {
+        params.style = { 
+          stroke: '#52C41A',  // 绿色
+          strokeWidth: 2
+        };
+      }
+      // 分析原子和分析结果的连接
+      else if (sourceType === 'atomicAnalysis' && targetType === 'analysisResult') {
+        params.style = { 
+          stroke: '#722ED1',  // 紫色
+          strokeWidth: 2
+        };
+      }
+      // 分析结果和分析资源的连接
+      else if (sourceType === 'analysisResult' && targetType === 'analysisResource') {
+        params.style = { 
+          stroke: '#F5222D',  // 红色
+          strokeWidth: 2
+        };
+      }
     }
 
     setEdges((eds) => addEdge(params, eds));
@@ -1538,6 +1857,19 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
           data: initialData
         };
         setNodes((nds) => [...nds, newNode]);
+      } else if (nodeType === 'dataModel') {
+        const rowId = addEmptyDataModelRow()
+        initialData = {
+          ...initialData,
+          id: rowId
+        }
+        const newNode = {
+          id: rowId,
+          type: 'custom',
+          position,
+          data: initialData
+        };
+        setNodes((nds) => [...nds, newNode]);
       } else {
         const newNode = {
           id: `node${nodes.length + 1}`,
@@ -1550,7 +1882,8 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
       
     },
     [nodes, reactFlowInstance, addEmptyPrerequisiteRow, addEmptyPreCheckRow, 
-     addEmptyAtomicAnalysisRow, addEmptyAnalysisResultRow, addEmptyAnalysisResourceRow]
+     addEmptyAtomicAnalysisRow, addEmptyAnalysisResultRow, addEmptyAnalysisResourceRow,
+     addEmptyDataModelRow]
   );
 
   const handleDragOver = useCallback((event) => {
@@ -1582,6 +1915,7 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
     );
   }, []);
 
+  // 修改nodeTypes定义以传递selected属性
   const nodeTypes = useMemo(
     () => ({
       custom: (props) => (
@@ -1589,6 +1923,7 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
           {...props}
           onDelete={onDeleteNode}
           onChange={updateNodeData}
+          selected={props.selected} // 传递selected属性
         />
       ),
     }),
@@ -1617,27 +1952,70 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
           data: { ...node.data }
         }));
         setClipboard(nodesToCopy);
+        console.log('已复制节点:', nodesToCopy);
         event.preventDefault();
       }
 
       if (isCtrlPressed && event.key === 'v' && clipboard) {
         // 粘贴操作
-        const now = Date.now();
-        const newNodes = clipboard.map((node, index) => ({
-          ...node,
-          id: `node-${now}-${index}`,
-          position: {
-            x: node.position.x + 50, // 偏移位置，避免完全重叠
-            y: node.position.y + 50
-          },
-          selected: false
-        }));
+        const newNodes = [];
+        
+        clipboard.forEach((node) => {
+          // 获取节点类型
+          const nodeType = node.data?.type;
+          let rowId;
+          
+          // 根据节点类型创建相应的表格数据行
+          switch (nodeType) {
+            case 'prerequisite':
+              rowId = addEmptyPrerequisiteRow();
+              break;
+            case 'preCheck':
+              rowId = addEmptyPreCheckRow();
+              break;
+            case 'atomicAnalysis':
+              rowId = addEmptyAtomicAnalysisRow();
+              break;
+            case 'analysisResult':
+              rowId = addEmptyAnalysisResultRow();
+              break;
+            case 'analysisResource':
+              rowId = addEmptyAnalysisResourceRow();
+              break;
+            case 'dataModel':
+              rowId = addEmptyDataModelRow();
+              break;
+            default:
+              rowId = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+              break;
+          }
+          
+          // 复制节点的数据到新节点
+          const newNode = {
+            ...node,
+            id: rowId,
+            position: {
+              x: node.position.x + 50, // 偏移位置，避免完全重叠
+              y: node.position.y + 50
+            },
+            selected: false,
+            data: {
+              ...node.data,
+              id: rowId // 更新节点数据中的ID
+            }
+          };
+          
+          newNodes.push(newNode);
+        });
 
         setNodes((nds) => [...nds, ...newNodes]);
+        console.log('已粘贴节点:', newNodes);
         event.preventDefault();
       }
     },
-    [nodes, clipboard]
+    [nodes, clipboard, addEmptyPrerequisiteRow, addEmptyPreCheckRow, 
+     addEmptyAtomicAnalysisRow, addEmptyAnalysisResultRow, 
+     addEmptyAnalysisResourceRow, addEmptyDataModelRow]
   );
 
   // 添加键盘事件监听
@@ -2020,21 +2398,239 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
     }
   ];
 
-  // 定义标签页内容
+  // 数据模型表格列定义
+  const dataModelColumns = [
+    {
+      title: '模型ID',
+      dataIndex: 'modelId',
+      key: 'modelId',
+      width: 120,
+      render: (text, record) => (
+        <Input
+          value={text}
+          onChange={(e) => handleDataModelTableCellEdit(record.key, 'modelId', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )
+    },
+    {
+      title: '解析类型',
+      dataIndex: 'parseType',
+      key: 'parseType',
+      width: 150,
+      render: (value, record) => (
+        <Select
+          value={value}
+          onChange={(value) => handleDataModelTableCellEdit(record.key, 'parseType', value)}
+          onClick={(e) => e.stopPropagation()}
+          options={[
+            { label: 'dump_table_value', value: 'dump_table_value' },
+            { label: 'custom_table_value', value: 'custom_table_value' },
+            { label: 'chipreg_table_value', value: 'chipreg_table_value' },
+            { label: 'multi_table_value', value: 'multi_table_value' },
+            { label: 'ctx_table_value', value: 'ctx_table_value' }
+          ]}
+          style={{ width: '100%' }}
+        />
+      )
+    },
+    {
+      title: '命令',
+      dataIndex: 'command',
+      key: 'command',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleDataModelTableCellEdit(record.key, 'command', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '参数',
+      dataIndex: 'parameters',
+      key: 'parameters',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleDataModelTableCellEdit(record.key, 'parameters', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '表头',
+      dataIndex: 'tableHeader',
+      key: 'tableHeader',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleDataModelTableCellEdit(record.key, 'tableHeader', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '开始标记',
+      dataIndex: 'startMark',
+      key: 'startMark',
+      width: 150,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleDataModelTableCellEdit(record.key, 'startMark', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '结束标记',
+      dataIndex: 'endMark',
+      key: 'endMark',
+      width: 150,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleDataModelTableCellEdit(record.key, 'endMark', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '行正则匹配',
+      dataIndex: 'lineRegex',
+      key: 'lineRegex',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleDataModelTableCellEdit(record.key, 'lineRegex', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '系统参数',
+      dataIndex: 'systemParams',
+      key: 'systemParams',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleDataModelTableCellEdit(record.key, 'systemParams', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '连表方式',
+      dataIndex: 'joinType',
+      key: 'joinType',
+      width: 120,
+      render: (value, record) => (
+        <Select
+          value={value}
+          onChange={(value) => handleDataModelTableCellEdit(record.key, 'joinType', value)}
+          onClick={(e) => e.stopPropagation()}
+          options={[
+            { label: '左连接', value: 'left_join' },
+            { label: '右连接', value: 'right_join' },
+            { label: '内连接', value: 'inner_join' },
+            { label: '外连接', value: 'outer_join' },
+            { label: '垂直连接', value: 'vertical_join' }
+          ]}
+          style={{ width: '100%' }}
+        />
+      )
+    },
+    {
+      title: '连表字段',
+      dataIndex: 'joinFields',
+      key: 'joinFields',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleDataModelTableCellEdit(record.key, 'joinFields', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    },
+    {
+      title: '额外操作',
+      dataIndex: 'extraOperation',
+      key: 'extraOperation',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          value={text}
+          onChange={(e) => handleDataModelTableCellEdit(record.key, 'extraOperation', e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+        />
+      )
+    }
+  ];
+
+  // 修改表格组件以支持行高亮
+  const renderTable = (columns, dataSource, handleCellEdit) => {
+    return (
+      <Table
+        columns={columns}
+        dataSource={dataSource}
+        scroll={{ y: 'calc(100% - 39px)' }}
+        size="small"
+        pagination={false}
+        locale={{ emptyText: '暂无数据' }}
+        rowClassName={(record) => record.key === selectedNodeId ? 'highlighted-row' : ''}
+        onRow={(record) => ({
+          onClick: () => {
+            // 点击表格行时选中对应的节点
+            setSelectedNodeId(record.key);
+            
+            // 找到对应的节点，并更新节点选中状态
+            setNodes(nodes.map(node => {
+              if (node.id === record.key) {
+                return {
+                  ...node,
+                  selected: true
+                };
+              } else {
+                return {
+                  ...node,
+                  selected: node.selected ? false : node.selected
+                };
+              }
+            }));
+          },
+          style: {
+            backgroundColor: record.key === selectedNodeId ? `rgba(24, 144, 255, 0.1)` : undefined,
+            cursor: 'pointer'
+          }
+        })}
+      />
+    );
+  };
+
+  // 定义标签页内容中修改表格渲染
   const tabItems = [
     {
       key: 'prerequisite',
       label: '前置条件',
       children: (
         <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
-          <Table
-            columns={prerequisiteColumns}
-            dataSource={prerequisiteData}
-            scroll={{ y: 'calc(100% - 39px)' }}
-            size="small"
-            pagination={false}
-            locale={{ emptyText: '暂无数据' }}
-          />
+          {renderTable(prerequisiteColumns, prerequisiteData, handleTableCellEdit)}
         </div>
       ),
     },
@@ -2043,14 +2639,7 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
       label: '执行前检查',
       children: (
         <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
-          <Table
-            columns={preCheckColumns}
-            dataSource={preCheckData}
-            scroll={{ y: 'calc(100% - 39px)' }}
-            size="small"
-            pagination={false}
-            locale={{ emptyText: '暂无数据' }}
-          />
+          {renderTable(preCheckColumns, preCheckData, handlePreCheckTableCellEdit)}
         </div>
       ),
     },
@@ -2059,14 +2648,7 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
       label: '分析原子',
       children: (
         <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
-          <Table
-            columns={atomicAnalysisColumns}
-            dataSource={atomicAnalysisData}
-            scroll={{ y: 'calc(100% - 39px)' }}
-            size="small"
-            pagination={false}
-            locale={{ emptyText: '暂无数据' }}
-          />
+          {renderTable(atomicAnalysisColumns, atomicAnalysisData, handleAtomicAnalysisTableCellEdit)}
         </div>
       ),
     },
@@ -2075,14 +2657,7 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
       label: '分析结果',
       children: (
         <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
-          <Table
-            columns={analysisResultColumns}
-            dataSource={analysisResultData}
-            scroll={{ y: 'calc(100% - 39px)' }}
-            size="small"
-            pagination={false}
-            locale={{ emptyText: '暂无数据' }}
-          />
+          {renderTable(analysisResultColumns, analysisResultData, handleAnalysisResultTableCellEdit)}
         </div>
       ),
     },
@@ -2091,14 +2666,7 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
       label: '分析资源',
       children: (
         <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
-          <Table
-            columns={analysisResourceColumns}
-            dataSource={analysisResourceData}
-            scroll={{ y: 'calc(100% - 39px)' }}
-            size="small"
-            pagination={false}
-            locale={{ emptyText: '暂无数据' }}
-          />
+          {renderTable(analysisResourceColumns, analysisResourceData, handleAnalysisResourceTableCellEdit)}
         </div>
       ),
     },
@@ -2107,15 +2675,233 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
       label: '数据模型',
       children: (
         <div style={{ padding: '16px', height: 'calc(100% - 55px)' }}>
-          <div style={{ textAlign: 'center', color: '#999' }}>数据模型列表</div>
+          {renderTable(dataModelColumns, dataModelData, handleDataModelTableCellEdit)}
         </div>
       ),
     },
   ];
 
+  // 修改ReactFlow组件以传递选中状态和onNodeClick事件
+  const onNodeClick = useCallback((event, node) => {
+    // 点击节点时切换到对应的标签页
+    if (node.data?.type) {
+      setActiveTab(node.data.type);
+    }
+    
+    // 设置选中节点ID
+    setSelectedNodeId(node.id);
+  }, []);
+
+  // 添加动画样式
+  const animationStyles = `
+    @keyframes flow {
+      0% {
+        stroke-dashoffset: 15;
+      }
+      100% {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    .react-flow__edge {
+      transition: stroke 0.3s, stroke-width 0.3s;
+    }
+
+    .react-flow__edge:hover {
+      stroke-width: 3px !important;
+    }
+
+    .react-flow__handle {
+      transition: all 0.2s ease;
+    }
+
+    .react-flow__handle:hover {
+      transform: scale(1.3);
+    }
+  `;
+
+  // 折叠所有节点的处理函数
+  const handleCollapseAllNodes = useCallback(() => {
+    // 切换折叠状态
+    setNodesExpanded(prev => !prev);
+    
+    // 更新所有节点的折叠状态
+    setNodes(nds => nds.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        isExpanded: !nodesExpanded // 使用相反的当前状态
+      }
+    })));
+    
+    console.log(`${!nodesExpanded ? '展开' : '折叠'}所有节点`);
+  }, [nodesExpanded]);
+
+  // 添加导出JSON功能
+  const handleExportJSON = useCallback(() => {
+    // 收集当前流程图数据
+    const flowData = {
+      nodes: nodes.map(node => ({
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        data: node.data,
+      })),
+      edges: edges.map(edge => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle,
+        targetHandle: edge.targetHandle,
+        type: edge.type,
+        style: edge.style
+      })),
+      // 导出表格数据
+      tables: {
+        prerequisiteData,
+        preCheckData,
+        atomicAnalysisData,
+        analysisResultData,
+        analysisResourceData,
+        dataModelData
+      }
+    };
+
+    // 转换为JSON字符串
+    const jsonString = JSON.stringify(flowData, null, 2);
+    
+    // 创建Blob对象
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    
+    // 创建下载链接
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // 设置文件名 (使用当前时间戳)
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    link.download = `flowchart-export-${timestamp}.json`;
+    
+    // 模拟点击下载
+    document.body.appendChild(link);
+    link.click();
+    
+    // 清理
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    console.log('流程图数据已导出为JSON');
+  }, [nodes, edges, prerequisiteData, preCheckData, atomicAnalysisData, analysisResultData, analysisResourceData, dataModelData]);
+
+  // 添加导入JSON功能
+  const handleImportJSON = useCallback(() => {
+    // 创建文件输入元素
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.json';
+    
+    // 处理文件选择
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          // 解析JSON数据
+          const flowData = JSON.parse(event.target.result);
+          
+          // 验证数据结构
+          if (!flowData.nodes || !flowData.edges) {
+            throw new Error('无效的流程图数据');
+          }
+          
+          // 还原节点和边缘数据
+          setNodes(flowData.nodes);
+          setEdges(flowData.edges);
+          
+          // 还原表格数据
+          if (flowData.tables) {
+            if (flowData.tables.prerequisiteData) setPrerequisiteData(flowData.tables.prerequisiteData);
+            if (flowData.tables.preCheckData) setPreCheckData(flowData.tables.preCheckData);
+            if (flowData.tables.atomicAnalysisData) setAtomicAnalysisData(flowData.tables.atomicAnalysisData);
+            if (flowData.tables.analysisResultData) setAnalysisResultData(flowData.tables.analysisResultData);
+            if (flowData.tables.analysisResourceData) setAnalysisResourceData(flowData.tables.analysisResourceData);
+            if (flowData.tables.dataModelData) setDataModelData(flowData.tables.dataModelData);
+          }
+          
+          console.log('流程图数据已成功导入');
+        } catch (error) {
+          console.error('导入失败:', error);
+          alert('导入失败: ' + error.message);
+        }
+      };
+      
+      // 读取文件内容
+      reader.readAsText(file);
+    };
+    
+    // 触发文件选择对话框
+    fileInput.click();
+  }, []);
+
   return (
     <Layout style={{ height: '100vh', width: '100%' }}>
       <Content style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* 添加全局样式 */}
+        <style>
+          {`
+            .highlighted-row {
+              background-color: rgba(24, 144, 255, 0.1) !important;
+            }
+            .highlighted-row:hover td {
+              background-color: rgba(24, 144, 255, 0.2) !important;
+            }
+            ${animationStyles}
+            .right-panel-toggle {
+              position: absolute;
+              right: ${showRightPanel ? '300px' : '0'};
+              top: 50%;
+              transform: translateY(-50%);
+              background: #fff;
+              border: 1px solid #ddd;
+              border-right: ${showRightPanel ? '1px solid #ddd' : 'none'};
+              border-radius: ${showRightPanel ? '4px 0 0 4px' : '0 4px 4px 0'};
+              width: 20px;
+              height: 60px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              cursor: pointer;
+              z-index: 100;
+              box-shadow: -2px 0 5px rgba(0,0,0,0.05);
+              transition: right 0.3s ease;
+            }
+            .right-panel {
+              width: 300px;
+              background-color: #fff;
+              border-left: 1px solid #ddd;
+              padding: 20px;
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+              transition: all 0.3s ease;
+              position: absolute;
+              right: 0;
+              top: 0;
+              bottom: 0;
+              z-index: 50;
+            }
+            .right-panel.hidden {
+              transform: translateX(100%);
+            }
+            .main-canvas {
+              flex: 1;
+              transition: all 0.3s ease;
+              margin-right: ${showRightPanel ? '300px' : '0'};
+            }
+          `}
+        </style>
         <div style={{ 
           padding: '10px', 
           borderBottom: '1px solid #ddd',
@@ -2126,15 +2912,37 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
             <Button type="primary">保存</Button>
             <Button>撤销</Button>
             <Button>重做</Button>
+            <Button 
+              icon={nodesExpanded ? <UpOutlined /> : <DownOutlined />} 
+              onClick={handleCollapseAllNodes}
+            >
+              {nodesExpanded ? '折叠全部' : '展开全部'}
+            </Button>
+            <Button 
+              icon={<DownloadOutlined />} 
+              onClick={handleExportJSON}
+            >
+              导出JSON
+            </Button>
+            <Button 
+              icon={<UploadOutlined />} 
+              onClick={handleImportJSON}
+            >
+              导入JSON
+            </Button>
           </Space>
         </div>
 
-        <div style={{ display: 'flex', flex: 1 }}>
-          <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', flex: 1, position: 'relative' }}>
+          <div className="main-canvas">
             <ReactFlow
               nodes={nodes}
               edges={edges}
               nodeTypes={nodeTypes}
+              // 添加自定义边的定义
+              edgeTypes={{
+                custom: CustomEdge
+              }}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
@@ -2145,7 +2953,7 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
               fitView
               style={{ background: '#f0f2f5' }}
               defaultEdgeOptions={{
-                type: 'smoothstep',
+                type: 'smoothstep', // 使用smoothstep类型
                 animated: true,
                 style: { stroke: '#555' },
                 markerEnd: {
@@ -2160,12 +2968,7 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
               multiSelectionKeyCode={['Control', 'Meta']}
               deleteKeyCode={['Backspace', 'Delete']}
               isValidConnection={isValidConnection}
-              onNodeClick={(event, node) => {
-                // 点击节点时切换到对应的标签页
-                if (node.data?.type) {
-                  setActiveTab(node.data.type);
-                }
-              }}
+              onNodeClick={onNodeClick}
             >
               <Background />
               <Controls />
@@ -2173,15 +2976,21 @@ const CustomNode = ({ id, data, onDelete, onChange }) => {
             </ReactFlow>
           </div>
 
-          <div style={{ 
-            width: 300, 
-            backgroundColor: '#fff', 
-            borderLeft: '1px solid #ddd',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px'
-          }}>
+          {/* 右侧面板切换按钮 */}
+          <div 
+            className="right-panel-toggle"
+            onClick={() => {
+              setShowRightPanel(!showRightPanel);
+              // 在状态改变后，触发一个ReactFlow窗口调整事件
+              setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+              }, 310); // 等待过渡动画完成
+            }}
+          >
+            {showRightPanel ? '>' : '<'}
+          </div>
+
+          <div className={`right-panel ${showRightPanel ? '' : 'hidden'}`}>
             <Input.Search
               placeholder="搜索节点类型"
               onChange={(e) => setSearchText(e.target.value)}
